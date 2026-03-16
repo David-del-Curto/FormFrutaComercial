@@ -1,7 +1,11 @@
 import streamlit as st
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 import urllib
 import pandas as pd
+from services.cache_sqlite import get_cache, set_cache
+import hashlib
+import json
+
 
 @st.cache_resource
 def get_engine():
@@ -24,27 +28,59 @@ def get_engine():
     return engine
 
 
-def _read_sql(query, params=None):
+def _build_cache_key(query, params=None):
+    payload = {
+        "q": query,
+        "p": list(params) if isinstance(params, tuple) else params
+    }
+    raw = json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    return hashlib.md5(raw).hexdigest()
+
+
+def _read_sql(query, params=None, ttl=3600):
+    cache_key = _build_cache_key(query, params)
+
+    cached = get_cache(cache_key)
+    if cached is not None:
+        return pd.DataFrame(cached)
+
     engine = get_engine()
+
     with engine.connect() as conn:
         try:
-            return pd.read_sql(query, conn, params=params)
+            df = pd.read_sql(query, conn, params=params)
         except Exception:
-            # Ensure failed/invalid transactions do not poison pooled connections.
             conn.rollback()
             raise
+
+    set_cache(cache_key, df.to_dict("records"), ttl)
+    return df
+
+
+def execute_non_query(query, params=None):
+    engine = get_engine()
+
+    with engine.begin() as conn:
+        conn.execute(text(query), params or {})
+
 
 @st.cache_data
 def cargar_productores():
     query = "EXEC sp_GetProductores"
-    return _read_sql(query)
+    return _read_sql(query, ttl=21600)
+
+@st.cache_data
+def cargar_centros():
+    query = "EXEC sp_GetCentrosLogisticos"
+    return _read_sql(query, ttl=21600)
 
 @st.cache_data
 def cargar_especies():
     query = "EXEC sp_GetEspecies"
-    return _read_sql(query)
+    return _read_sql(query, ttl=86400)
+
 
 @st.cache_data
 def cargar_variedades(id_especie):
     query = "EXEC sp_GetVariedadesByEspecie @idEspecie = ?"
-    return _read_sql(query, params=(id_especie,))
+    return _read_sql(query, params=(id_especie,), ttl=21600)

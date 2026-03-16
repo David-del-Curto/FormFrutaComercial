@@ -1,301 +1,220 @@
 import streamlit as st
+from datetime import datetime
 import pandas as pd
-from datetime import datetime, time
-from engine import get_engine, cargar_productores, cargar_especies, cargar_variedades
+
+from services.cache_sqlite import init_cache
+from services.cache_warmup import warm_cache
+
+from engine import cargar_productores, cargar_especies, cargar_variedades, cargar_centros
+
+from core.catalogos import LUGAR_SELECCION, LINEAS, DEFECTOS
+from core.forms import (
+    render_bloque_defectos,
+    render_bloque_resultado,
+    render_bloque_terceros
+)
+from core.validators import validar_formulario
+from core.ui import render_header, mostrar_resumen_dialog
+from services.save_form import guardar_formulario_staging
 
 
-st.set_page_config(page_title="Planilla Fruta Comercial", layout="wide", initial_sidebar_state="auto")
+warm_cache()
+init_cache()
 
-lugar_seleccion = {
-    "MS": "Mesa Selección",
-    "BC": "Bins Comercial",
-    "TP": "Trypack"
-}
+st.set_page_config(
+    page_title="Planilla Fruta Comercial",
+    layout="wide"
+)
 
-defectos = [
-    "Herida Abierta (Oxidada)",
-    "Herida Abierta (Fresca)",
-    "Machucón",
-    "Partidura",
-    "Golpe Sol Severo",
-    "Cracking",
-    "Deshidratación",
-    "Desgarro Pedicelar",
-    "Lenticelosis",
-    "Bitter Pit",
-    "Manchas – Roce",
-    "Roce (Línea Proceso)",
-    "Falta Color",
-    "Herida Cicatrizada",
-    "Daño Insecto",
-    "Deforme",
-    "Ramaleo",
-    "Roce Grave",
-    "Russet Grave"
-]
+render_header("images/Imagen2.jpg", "Planilla Fruta Comercial")
 
-linea = {
-    "1": "Linea 1",
-    "2": "Linea 2",
-    "3": "Linea 3"
-}
+st.divider()
+st.subheader("Encabezado")
 
-with st.container():    
+col1, col2, col3 = st.columns([1,2,1])
 
-    st.image("images/Imagen2.jpg")
+with col2:
+    verificador = st.text_input("Verificador")
 
-    st.title("Planilla Fruta Comercial")
+col1, col2, col3 = st.columns(3)
 
-    st.subheader("Encabezado")
+with col1:
 
-    col1, col2, col3 = st.columns(3)
+    fecha = st.date_input("Fecha", datetime.today())
 
-    with col1:
+    df_productores = cargar_productores()
 
-        fecha = st.date_input("Fecha", datetime.today()) 
-
-        df_productores = cargar_productores()
-        productor = st.selectbox(
-            "Productor",
-            df_productores.to_dict("records"),
-            format_func=lambda x: f"{x['CodProductor_SAP']}  -  {x['Productor']}"
-        )
-
-        nro_lote = st.text_input("N° Lote") 
-        lote_limpio = nro_lote.strip()
-        lote_valido = bool(lote_limpio)
-
-        if not lote_valido and nro_lote != "":
-            st.warning("Debe ingresar N° Lote")
-
-    with col2:
-
-        linea = st.selectbox(
-            "Línea",
-            options=list(linea.keys())
-        )
-
-        df_especies = cargar_especies()
-        especie = st.selectbox(
-            "Especie",
-            df_especies.to_dict("records"),
-            format_func=lambda x: f"{x['Especie']}",
-            key="especie_select"
-        )
-        id_especie = int(especie["idEspecie"])
-
-        cant_muestra = st.number_input("Cant. Frutos Muestra", min_value=1, step=1)
-
-    with col3:    
-
-        lugar = st.selectbox(
-            "Lugar de Selección",
-            options=list(lugar_seleccion.keys()),
-            format_func=lambda x: f"{x} - {lugar_seleccion[x]}"
-        )
-
-        df_variedades = cargar_variedades(id_especie)
-        variedad = st.selectbox(
-            "Variedad",
-            df_variedades.to_dict("records"),
-            format_func=lambda x: f"{x['Variedad']}",
-            key=f"variedad_{id_especie}"
-        )
-
-        hora_eval = st.time_input("Hora Evaluación", time(8, 0))
-
-    st.divider()
-
-    col_t1, col_t2 = st.columns([4,1])
-
-    with col_t1:
-        st.subheader("Defectos (Unidades)")
-
-    valores = {}
-
-    cols = st.columns(3)
-
-    for i, d in enumerate(defectos):
-        with cols[i % 3]:
-            valores[d] = st.number_input(
-                d,
-                min_value=0.0,
-                step=0.1,
-                format="%.2f"
-            )
-
-    suma_defectos = round(sum(valores.values()), 2)
-
-    with col_t2:
-        st.markdown(
-            f"<h3 style='text-align:right;'>Σ {suma_defectos:.2f}</h3>",
-            unsafe_allow_html=True
-        )
-    
-    st.divider()
-
-    col_r1, col_r2 = st.columns([4,1])
-
-    with col_r1:
-        st.subheader("Resultado (Unidades)")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-
-        fruta_sana = st.number_input("Fruta Sana (exportación)", min_value=0.0, step=0.1, format="%.2f")
-
-    with col2:
-
-        choice = st.number_input("Choice (aprovechable)", min_value=0.0, step=0.1, format="%.2f")
-
-    total_resultado = round(choice + fruta_sana + suma_defectos, 2)
-
-    with col_r2:
-
-        color = "green" if suma_defectos <= cant_muestra else "red"
-
-        st.markdown(
-            f"<h3 style='text-align:right; color:{color};'>Σ {total_resultado:.2f}</h3>",
-            unsafe_allow_html=True
-        )
-
-    st.divider()
-
-    st.subheader("Terceros")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-
-        porcentaje_exportable_manual = st.number_input(
-            "% Exportable (manual)",
-            min_value=0.0,
-            max_value=100.0,
-            step=0.1
-        )
-
-    with col2:
-
-        velocidad = st.number_input("Velocidad (manual)", min_value=0.0, step=0.1)
-
-    st.divider()
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-
-        observaciones = st.text_area("Observaciones")
-
-    with col2:
-
-        verificador = st.text_input("Verificador")
-
-    st.divider()
-
-    submit = st.button("Enviar Formulario",type="primary",width="stretch", disabled=not lote_valido)
-
-    st.info(
-        "Más adelante reemplazaremos este input libre por informacion"
+    productor = st.selectbox(
+        "Productor",
+        df_productores.to_dict("records"),
+        format_func=lambda x: f"{x['CodProductor_SAP']} - {x['Productor']}"
     )
 
-    @st.dialog("Confirmación de Registro",width="medium")
-    def mostrar_resumen(registro, porcentaje_exportable, porcentaje_embalable):
+    nro_lote = st.text_input("N° Lote")
 
-        st.success("Registro válido")
+    df_centros = cargar_centros()
+    centro = st.selectbox(
+        "Centro Logístico",
+        df_centros.to_dict("records"),
+        format_func=lambda x: f"{x['CodCentro_SAP']} - {x['Centro_Logistico']}"
+    )
 
-        st.markdown("Indicadores")
+with col2:
 
-        col1, col2 = st.columns(2)
-        col1.metric("% Exportable", f"{porcentaje_exportable}%")
-        col2.metric("% Embalable", f"{porcentaje_embalable}%")
+    linea = st.selectbox(
+        "Línea",
+        options=list(LINEAS.keys()),
+        format_func=lambda x: LINEAS[x]
+    )
 
-        st.divider()
-        st.markdown("Resumen")
+    df_especies = cargar_especies()
 
-        for k, v in registro.items():
-            col1, col2 = st.columns([1,2])
-            col1.markdown(f"**{k}**")
-            col2.write(v)
+    especie = st.selectbox(
+        "Especie",
+        df_especies.to_dict("records"),
+        format_func=lambda x: x["Especie"]
+    )
 
-        st.divider()
+    cant_muestra = st.number_input(
+        "Cant. Frutos Muestra",
+        min_value=1,
+        step=1
+    )
 
-        col_btn1, col_btn2 = st.columns(2)
+with col3:
 
-        with col_btn1:
-            if st.button("❌ Cancelar"):
-                st.rerun()
+    lugar_codigo = st.selectbox(
+        "Lugar de selección",
+        options=list(LUGAR_SELECCION.keys()),
+        format_func=lambda x: LUGAR_SELECCION[x]
+    )
 
-        with col_btn2:
-            if st.button("Confirmar y Guardar", type="primary"):
+    df_variedades = cargar_variedades(int(especie["idEspecie"]))
 
-                # guardar_en_bd(registro)
+    variedad = st.selectbox(
+        "Variedad",
+        df_variedades.to_dict("records"),
+        format_func=lambda x: x["Variedad"]
+    )
 
-                st.success("Registro guardado correctamente")
-                st.rerun()
+    velocidad_kgh = st.number_input(
+        "Velocidad Kg/h",
+        min_value=0.0,
+        step=0.1
+    )
 
-    if submit:
+st.divider()
 
-        suma_defectos = round(sum(valores.values()), 2)
-        total_con_choice = round(suma_defectos + choice + fruta_sana, 2)
-        total_sin_choice = round(suma_defectos + fruta_sana, 2)
+defectos, suma_defectos = render_bloque_defectos()
 
-        errores = []
+st.divider()
 
-        if not nro_lote.strip():
-            errores.append("Debe ingresar N° Lote")
+resultado = render_bloque_resultado(cant_muestra, suma_defectos)
 
-        if total_sin_choice != round(cant_muestra, 2):
-            errores.append(
-                f"Defectos + Fruta Sana ({total_sin_choice}) debe ser igual a la muestra ({cant_muestra})"
-            )
+st.divider()
 
-        if total_con_choice != round(cant_muestra, 2):
-            errores.append(
-                f"Defectos + Choice + Fruta Sana ({total_con_choice}) debe ser igual a la muestra ({cant_muestra})"
-            )
+terceros = render_bloque_terceros()
 
-        if errores:
-            for e in errores:
-                st.error(f"{e}")
-            st.stop()
-        else:
-            # Cálculos automáticos
-            porcentaje_exportable = round((fruta_sana / cant_muestra) * 100, 2)
-            porcentaje_embalable = round(((fruta_sana + choice) / cant_muestra) * 100, 2)
+st.divider()
 
-            st.success("Registro válido")
+observaciones = st.text_area("Observaciones")
 
-            st.markdown("Indicadores Calculados")
-            st.write(f"% Exportable (automático): {porcentaje_exportable}%")
-            st.write(f"% Embalable: {porcentaje_embalable}%")
+submit = st.button("Enviar Formulario", type="primary", width="stretch")
 
-            registro = {
-                "Fecha": fecha.strftime("%Y-%m-%d"),
-                "Línea": linea,
-                "Especie": especie["Especie"],
-                "Variedad": variedad["Variedad"],
-                "Nro Lote": nro_lote,
-                "Hora Evaluacion": hora_eval.strftime("%H:%M"),
-                "Productor": f"{productor["CodProductor_SAP"]} - {productor["Productor"]}",
-                "Cant Muestra": cant_muestra,
-                "Lugar Seleccion": lugar_seleccion[lugar],
-                **valores,
-                "Choice": choice,
-                "Fruta Sana": fruta_sana,
-                "% Exportable Auto": porcentaje_exportable,
-                "% Embalable": porcentaje_embalable,
-                "Velocidad Terceros": velocidad,
-                "% Exportable Manual": porcentaje_exportable_manual,
-                "Observaciones": observaciones,
-                "Verificador": verificador
-            }
+if submit:
 
-            st.markdown("Resumen Registro")
+    errores = validar_formulario(
+        nro_lote,
+        centro,
+        cant_muestra,
+        suma_defectos,
+        resultado["fruta_sana"],
+        resultado["choice"],
+        verificador
+    )
 
-            for k, v in registro.items():
-                col1, col2 = st.columns([1,2])
-                col1.markdown(f"**{k}**")
-                col2.write(v)
+    if errores:
+        for e in errores:
+            st.error(e)
+        st.stop()
 
-            mostrar_resumen(registro, porcentaje_exportable, porcentaje_embalable)
+    # % Exportacion es estimado y se ajusta -2 pp sobre % Comercial.
+    porc_comercial = round((resultado["fruta_comercial"] / cant_muestra) * 100, 2)
+    porc_exportacion_estimado = porc_comercial
+    porc_exportacion = round((resultado["fruta_sana"] / cant_muestra) * 100, 2)
+    porc_choice = round((resultado["choice"] / cant_muestra) * 100, 2)
+    porc_descartable = round((suma_defectos / cant_muestra) * 100, 2)
+
+    defectos = {
+        DEFECTOS[codigo]: valor
+        for codigo, valor in defectos.items()
+        if valor > 0
+    }
+
+    df_defectos = (
+        pd.DataFrame(
+            list(defectos.items()),
+            columns=["Defecto", "Cantidad"]
+        )
+        .sort_values("Cantidad", ascending=False)
+    )
+
+    if not df_defectos.empty:
+        df_defectos["% Muestra"] = (
+            df_defectos["Cantidad"] / cant_muestra * 100
+        ).round(1).astype(str) + " %"
+
+    resumen = {
+        "Verificador": verificador,
+        "Fecha": fecha.strftime("%Y-%m-%d"),
+        "Linea": LINEAS[linea],
+        "Especie": especie["Especie"],
+        "Variedad": variedad["Variedad"],
+        "Nro Lote": nro_lote,
+        "Centro": centro,
+        "Productor": productor["Productor"],
+        "Cant Muestra": cant_muestra,
+        "Lugar": LUGAR_SELECCION[lugar_codigo],
+        "Fruta Comercial (acumulado)": resultado["fruta_comercial"],
+        "Fruta Sana (acumulado)": resultado["fruta_sana"],
+        "Choice (acumulado)": resultado["choice"],
+        "% Exportacion estimado": porc_exportacion_estimado,
+        "% Exportacion ajustado (-2 pp)": porc_exportacion,
+        "% Choice": porc_choice,
+        "% Comercial": porc_comercial,
+        "% Descartable": porc_descartable,
+    }
+
+    payload = {
+        "fecha": fecha.strftime("%Y-%m-%d"),
+        "linea": linea,
+        "especie": especie["Especie"],
+        "variedad": variedad["Variedad"],
+        "lote": nro_lote,
+        "centro": centro,
+        "productor": productor["Productor"],
+        "cant_muestra": cant_muestra,
+        "fruta_sana": resultado["fruta_sana"],
+        "choice": resultado["choice"],
+        "porc_exportable": porc_exportacion,
+        "porc_embalable": porc_comercial,
+        "observaciones": observaciones,
+        "verificador": verificador,
+        "lugar_codigo": lugar_codigo,
+        "velocidad_kgh": velocidad_kgh,
+        "porc_export_manual": terceros["porc_export_manual"],
+        "velocidad_manual": terceros["velocidad_manual"]
+    }
+
+    def confirmar():
+        guardar_formulario_staging(payload, defectos)
+
+    mostrar_resumen_dialog(
+        resumen,
+        df_defectos,
+        porc_exportacion,
+        porc_choice,
+        porc_comercial,
+        porc_descartable,
+        confirmar
+    )
