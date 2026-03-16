@@ -14,6 +14,7 @@ def init_db():
             especie TEXT,
             variedad TEXT,
             lote TEXT,
+            centro TEXT,
             productor TEXT,
             cant_muestra INTEGER,
             fruta_sana INTEGER,

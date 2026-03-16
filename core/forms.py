@@ -1,4 +1,4 @@
-import streamlit as st
+﻿import streamlit as st
 from core.catalogos import DEFECTOS
 
 
@@ -42,25 +42,24 @@ def render_bloque_resultado(cant_muestra, suma_defectos):
     with col_r1:
         st.subheader("Resultado (Unidades)")
 
-    col1, col2 = st.columns(2)
+    fruta_comercial = max(int(cant_muestra - suma_defectos), 0)
+    porc_comercial = (fruta_comercial / cant_muestra * 100) if cant_muestra else 0.0
+    porc_exportacion_ajustada = max(0.0, porc_comercial - 2.0)
+
+    fruta_sana = int(round(cant_muestra * (porc_exportacion_ajustada / 100.0)))
+    fruta_sana = min(fruta_sana, fruta_comercial)
+    choice = int(fruta_comercial - fruta_sana)
+
+    col1, col2, col3 = st.columns(3)
 
     with col1:
-        fruta_sana = st.number_input(
-            "Fruta Sana (exportación)",
-            min_value=0,
-            step=1,
-            format="%d",
-            key="fruta_sana"
-        )
+        st.metric("Fruta Comercial (acumulado)", fruta_comercial)
 
     with col2:
-        choice = st.number_input(
-            "Choice (aprovechable)",
-            min_value=0,
-            step=1,
-            format="%d",
-            key="choice"
-        )
+        st.metric("Fruta Sana (acumulado)", fruta_sana)
+
+    with col3:
+        st.metric("Choice (acumulado)", choice)
 
     total = int(choice + fruta_sana + suma_defectos)
 
@@ -75,6 +74,7 @@ def render_bloque_resultado(cant_muestra, suma_defectos):
     return {
         "fruta_sana": fruta_sana,
         "choice": choice,
+        "fruta_comercial": fruta_comercial,
         "total": total
     }
 
@@ -87,7 +87,7 @@ def render_bloque_terceros():
 
     with col1:
         porc_export_manual = st.number_input(
-            "% Exportable (manual)",
+            "% Exportable acumulado (manual)",
             min_value=0.0,
             max_value=100.0,
             step=0.1
@@ -104,3 +104,4 @@ def render_bloque_terceros():
         "porc_export_manual": porc_export_manual,
         "velocidad_manual": velocidad_manual
     }
+

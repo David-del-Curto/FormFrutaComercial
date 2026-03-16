@@ -5,7 +5,7 @@ import pandas as pd
 from services.cache_sqlite import init_cache
 from services.cache_warmup import warm_cache
 
-from engine import cargar_productores, cargar_especies, cargar_variedades
+from engine import cargar_productores, cargar_especies, cargar_variedades, cargar_centros
 
 from core.catalogos import LUGAR_SELECCION, LINEAS, DEFECTOS
 from core.forms import (
@@ -51,6 +51,13 @@ with col1:
     )
 
     nro_lote = st.text_input("N° Lote")
+
+    df_centros = cargar_centros()
+    centro = st.selectbox(
+        "Centro Logístico",
+        df_centros.to_dict("records"),
+        format_func=lambda x: f"{x['CodCentro_SAP']} - {x['Centro_Logistico']}"
+    )
 
 with col2:
 
@@ -118,6 +125,7 @@ if submit:
 
     errores = validar_formulario(
         nro_lote,
+        centro,
         cant_muestra,
         suma_defectos,
         resultado["fruta_sana"],
@@ -130,9 +138,12 @@ if submit:
             st.error(e)
         st.stop()
 
-    porc_exportable = round((resultado["fruta_sana"] / cant_muestra) * 100, 2)
-    porc_embalable = round(((resultado["fruta_sana"] + resultado["choice"]) / cant_muestra) * 100, 2)
-    porc_defectos = round((suma_defectos / cant_muestra) * 100, 2)
+    # % Exportacion es estimado y se ajusta -2 pp sobre % Comercial.
+    porc_comercial = round((resultado["fruta_comercial"] / cant_muestra) * 100, 2)
+    porc_exportacion_estimado = porc_comercial
+    porc_exportacion = round((resultado["fruta_sana"] / cant_muestra) * 100, 2)
+    porc_choice = round((resultado["choice"] / cant_muestra) * 100, 2)
+    porc_descartable = round((suma_defectos / cant_muestra) * 100, 2)
 
     defectos = {
         DEFECTOS[codigo]: valor
@@ -160,14 +171,18 @@ if submit:
         "Especie": especie["Especie"],
         "Variedad": variedad["Variedad"],
         "Nro Lote": nro_lote,
+        "Centro": centro,
         "Productor": productor["Productor"],
         "Cant Muestra": cant_muestra,
         "Lugar": LUGAR_SELECCION[lugar_codigo],
-        "Choice": resultado["choice"],
-        "Fruta Sana": resultado["fruta_sana"],
-        "% Exportable": porc_exportable,
-        "% Embalable": porc_embalable,
-        
+        "Fruta Comercial (acumulado)": resultado["fruta_comercial"],
+        "Fruta Sana (acumulado)": resultado["fruta_sana"],
+        "Choice (acumulado)": resultado["choice"],
+        "% Exportacion estimado": porc_exportacion_estimado,
+        "% Exportacion ajustado (-2 pp)": porc_exportacion,
+        "% Choice": porc_choice,
+        "% Comercial": porc_comercial,
+        "% Descartable": porc_descartable,
     }
 
     payload = {
@@ -176,12 +191,13 @@ if submit:
         "especie": especie["Especie"],
         "variedad": variedad["Variedad"],
         "lote": nro_lote,
+        "centro": centro,
         "productor": productor["Productor"],
         "cant_muestra": cant_muestra,
         "fruta_sana": resultado["fruta_sana"],
         "choice": resultado["choice"],
-        "porc_exportable": porc_exportable,
-        "porc_embalable": porc_embalable,
+        "porc_exportable": porc_exportacion,
+        "porc_embalable": porc_comercial,
         "observaciones": observaciones,
         "verificador": verificador,
         "lugar_codigo": lugar_codigo,
@@ -196,8 +212,9 @@ if submit:
     mostrar_resumen_dialog(
         resumen,
         df_defectos,
-        porc_defectos,
-        porc_exportable,
-        porc_embalable,
+        porc_exportacion,
+        porc_choice,
+        porc_comercial,
+        porc_descartable,
         confirmar
     )

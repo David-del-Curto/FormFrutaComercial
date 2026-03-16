@@ -69,6 +69,10 @@ def cargar_productores():
     query = "EXEC sp_GetProductores"
     return _read_sql(query, ttl=21600)
 
+@st.cache_data
+def cargar_centros():
+    query = "EXEC sp_GetCentrosLogisticos"
+    return _read_sql(query, ttl=21600)
 
 @st.cache_data
 def cargar_especies():

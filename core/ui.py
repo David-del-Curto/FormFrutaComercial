@@ -24,7 +24,15 @@ def render_header(image_path: str, title: str):
     )
 
 
-def mostrar_resumen_dialog(registro, df_defectos, porc_defectos, porc_exportable, porc_embalable, on_confirm):
+def mostrar_resumen_dialog(
+    registro,
+    df_defectos,
+    porc_exportacion,
+    porc_choice,
+    porc_comercial,
+    porc_descartable,
+    on_confirm
+):
 
     @st.dialog("Confirmación de Registro", width="large")
     def dialog():
@@ -33,23 +41,26 @@ def mostrar_resumen_dialog(registro, df_defectos, porc_defectos, porc_exportable
 
         st.markdown("Indicadores de Calidad")
 
-        col1, col2, col3 = st.columns(3)
-
-        
+        col1, col2, col3, col4 = st.columns(4)
 
         col1.metric(
-            "% Exportable",
-            f"{porc_exportable} %",
+            "% Exportacion",
+            f"{porc_exportacion} %",
         )
 
         col2.metric(
-            "% Embalable",
-            f"{porc_embalable} %",
+            "% Choice",
+            f"{porc_choice} %",
         )
 
         col3.metric(
-            "% Defectos",
-            f"{porc_defectos} %",
+            "% Comercial",
+            f"{porc_comercial} %",
+        )
+
+        col4.metric(
+            "% Descartable",
+            f"{porc_descartable} %",
             delta=None
         )
 
