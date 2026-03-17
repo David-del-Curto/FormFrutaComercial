@@ -12,8 +12,8 @@
     if not nro_lote.strip():
         errores.append("Debe ingresar N° Lote")
 
-    if not centro.strip():
-        errores.append("Debe ingresar Centro")
+    #if not centro.strip():
+    #    errores.append("Debe ingresar Centro")
 
     if not verificador.strip():
         errores.append("Debe ingresar Verificador")
