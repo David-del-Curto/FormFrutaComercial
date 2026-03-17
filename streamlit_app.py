@@ -171,7 +171,7 @@ if submit:
         "Especie": especie["Especie"],
         "Variedad": variedad["Variedad"],
         "Nro Lote": nro_lote,
-        "Centro": centro,
+        "Centro": centro["Centro_Logistico"],
         "Productor": productor["Productor"],
         "Cant Muestra": cant_muestra,
         "Lugar": LUGAR_SELECCION[lugar_codigo],
