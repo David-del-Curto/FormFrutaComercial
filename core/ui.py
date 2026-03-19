@@ -27,10 +27,7 @@ def render_header(image_path: str, title: str):
 def mostrar_resumen_dialog(
     registro,
     df_defectos,
-    porc_exportacion,
-    porc_choice,
-    porc_comercial,
-    porc_descartable,
+    metricas,
     on_confirm
 ):
 
@@ -41,28 +38,14 @@ def mostrar_resumen_dialog(
 
         st.markdown("Indicadores de Calidad")
 
-        col1, col2, col3, col4 = st.columns(4)
+        cols = st.columns(len(metricas))
 
-        col1.metric(
-            "% Exportacion",
-            f"{porc_exportacion} %",
-        )
-
-        col2.metric(
-            "% Choice",
-            f"{porc_choice} %",
-        )
-
-        col3.metric(
-            "% Comercial",
-            f"{porc_comercial} %",
-        )
-
-        col4.metric(
-            "% Descartable",
-            f"{porc_descartable} %",
-            delta=None
-        )
+        for col, (label, valor) in zip(cols, metricas):
+            col.metric(
+                label,
+                f"{valor} %",
+                delta=None
+            )
 
         st.divider()
 
@@ -109,8 +92,12 @@ def mostrar_resumen_dialog(
 
         with col_btn2:
             if st.button("Confirmar y Guardar", type="primary"):
-                on_confirm()
-                st.success("Registro guardado correctamente")
-                st.rerun()
+                try:
+                    on_confirm()
+                except Exception as exc:
+                    st.error(f"No se pudo guardar el registro: {exc}")
+                else:
+                    st.success("Registro guardado correctamente")
+                    st.rerun()
 
     dialog()
