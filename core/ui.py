@@ -1,4 +1,5 @@
 import base64
+import math
 from pathlib import Path
 import streamlit as st
 
@@ -27,10 +28,7 @@ def render_header(image_path: str, title: str):
 def mostrar_resumen_dialog(
     registro,
     df_defectos,
-    porc_exportacion,
-    porc_choice,
-    porc_comercial,
-    porc_descartable,
+    metricas,
     on_confirm
 ):
 
@@ -41,28 +39,21 @@ def mostrar_resumen_dialog(
 
         st.markdown("Indicadores de Calidad")
 
-        col1, col2, col3, col4 = st.columns(4)
+        cols = st.columns(len(metricas))
 
-        col1.metric(
-            "% Exportacion",
-            f"{porc_exportacion} %",
-        )
+        for col, (label, valor) in zip(cols, metricas):
+            if isinstance(valor, (int, float)) and not isinstance(valor, bool):
+                display_value = f"{round(float(valor), 2)} %"
+                if not math.isfinite(float(valor)):
+                    display_value = "Pendiente"
+            else:
+                display_value = str(valor)
 
-        col2.metric(
-            "% Choice",
-            f"{porc_choice} %",
-        )
-
-        col3.metric(
-            "% Comercial",
-            f"{porc_comercial} %",
-        )
-
-        col4.metric(
-            "% Descartable",
-            f"{porc_descartable} %",
-            delta=None
-        )
+            col.metric(
+                label,
+                display_value,
+                delta=None
+            )
 
         st.divider()
 
@@ -109,8 +100,12 @@ def mostrar_resumen_dialog(
 
         with col_btn2:
             if st.button("Confirmar y Guardar", type="primary"):
-                on_confirm()
-                st.success("Registro guardado correctamente")
-                st.rerun()
+                try:
+                    on_confirm()
+                except Exception as exc:
+                    st.error(f"No se pudo guardar el registro: {exc}")
+                else:
+                    st.success("Registro guardado correctamente")
+                    st.rerun()
 
     dialog()
