@@ -1,4 +1,5 @@
 import base64
+import math
 from pathlib import Path
 import streamlit as st
 
@@ -41,9 +42,16 @@ def mostrar_resumen_dialog(
         cols = st.columns(len(metricas))
 
         for col, (label, valor) in zip(cols, metricas):
+            if isinstance(valor, (int, float)) and not isinstance(valor, bool):
+                display_value = f"{round(float(valor), 2)} %"
+                if not math.isfinite(float(valor)):
+                    display_value = "Pendiente"
+            else:
+                display_value = str(valor)
+
             col.metric(
                 label,
-                f"{valor} %",
+                display_value,
                 delta=None
             )
 

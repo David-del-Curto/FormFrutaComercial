@@ -93,6 +93,7 @@ BEGIN
 END
 GO
 
+-- EXISTS ON DW
 IF OBJECT_ID('dw.DimCentro', 'U') IS NULL
 BEGIN
     CREATE TABLE dw.DimCentro (
@@ -110,6 +111,7 @@ BEGIN
 END
 GO
 
+-- EXISTS ON DW
 IF OBJECT_ID('dw.DimProductor', 'U') IS NULL
 BEGIN
     CREATE TABLE dw.DimProductor (
@@ -126,6 +128,7 @@ BEGIN
 END
 GO
 
+-- EXISTS ON DW
 IF OBJECT_ID('dw.DimEspecie', 'U') IS NULL
 BEGIN
     CREATE TABLE dw.DimEspecie (
@@ -140,6 +143,7 @@ BEGIN
 END
 GO
 
+-- EXISTS ON DW
 IF OBJECT_ID('dw.DimVariedad', 'U') IS NULL
 BEGIN
     CREATE TABLE dw.DimVariedad (
@@ -157,6 +161,7 @@ BEGIN
 END
 GO
 
+-- NO EXISTS ON DW
 IF OBJECT_ID('dw.DimLinea', 'U') IS NULL
 BEGIN
     CREATE TABLE dw.DimLinea (
@@ -320,9 +325,8 @@ BEGIN
 
     MERGE dw.DimTurno AS tgt
     USING (
-        SELECT 'T1' AS turno_codigo, 'Turno 1' AS turno_nombre, '06:00-14:59' AS rango_turno
-        UNION ALL SELECT 'T2', 'Turno 2', '15:00-23:59'
-        UNION ALL SELECT 'T3', 'Turno 3', '00:00-05:59'
+        SELECT 'T1' AS turno_codigo, 'Turno 1' AS turno_nombre, '07:00-17:00' AS rango_turno
+        UNION ALL SELECT 'T2', 'Turno 2', '17:00-02:00'
     ) AS src
         ON tgt.turno_codigo = src.turno_codigo
     WHEN MATCHED THEN

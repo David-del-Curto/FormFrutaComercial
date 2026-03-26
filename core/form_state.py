@@ -23,6 +23,8 @@ FORM_STATE_KEYS = [
     "form_lugar_codigo",
     "form_variedad",
     "velocidad_kgh",
+    "kg_ultima_hora",
+    "ingreso_manual_kg_ultima_hora",
     "form_observaciones",
     "choice_resultado",
     "porc_export_manual",
@@ -34,8 +36,15 @@ def reset_form_state():
     for key in FORM_STATE_KEYS:
         st.session_state.pop(key, None)
 
+    # Fuerza cero en defectos conocidos para evitar valores "pegados" de widgets.
     for codigo in DEFECTOS:
-        st.session_state.pop(f"def_{codigo}", None)
+        st.session_state[f"def_{codigo}"] = 0
+
+    # Limpia claves de defectos obsoletas/no catalogadas.
+    claves_catalogo = {f"def_{codigo}" for codigo in DEFECTOS}
+    for key in list(st.session_state.keys()):
+        if key.startswith("def_") and key not in claves_catalogo:
+            st.session_state.pop(key, None)
 
 
 def _match_option(options, predicate):
@@ -64,6 +73,8 @@ def load_record_into_session(
         else next(iter(LUGAR_SELECCION))
     )
     st.session_state["velocidad_kgh"] = float(registro.get("velocidad_kgh") or 0.0)
+    st.session_state["kg_ultima_hora"] = int(registro.get("kg_ultima_hora") or 0)
+    st.session_state.pop("ingreso_manual_kg_ultima_hora", None)
     st.session_state["form_observaciones"] = registro.get("observaciones", "")
     st.session_state["choice_resultado"] = int(registro.get("choice") or 0)
     st.session_state["porc_export_manual"] = int(registro.get("porc_export_manual") or 0)

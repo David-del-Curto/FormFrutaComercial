@@ -18,13 +18,16 @@ def calcular_resultado(cant_muestra: int, suma_defectos: int, choice: int = 0):
     choice = max(int(choice or 0), 0)
     max_choice = max(cant_muestra - suma_defectos, 0)
 
-    fruta_comercial = suma_defectos + choice
-    fruta_sana = max(cant_muestra - fruta_comercial, 0)
-    total = fruta_comercial + fruta_sana
-    diferencia_muestra = cant_muestra - fruta_comercial
+    # Comercial considera solo defectos; choice se suma a fruta buena.
+    fruta_comercial = max(suma_defectos, 0)
+    fruta_sana = max(cant_muestra - fruta_comercial - choice, 0)
+    fruta_buena = fruta_sana + choice
+    total = fruta_comercial + fruta_buena
+    diferencia_muestra = cant_muestra - total
 
     return {
         "fruta_sana": fruta_sana,
+        "fruta_buena": fruta_buena,
         "choice": choice,
         "fruta_comercial": fruta_comercial,
         "total": total,
@@ -33,25 +36,54 @@ def calcular_resultado(cant_muestra: int, suma_defectos: int, choice: int = 0):
     }
 
 
-def calcular_indicadores_operaciones(cant_muestra: int, suma_defectos: int):
+def _porcentaje(valor: float, base: float) -> float:
+    if base <= 0:
+        return 0.0
+    return round((valor / base) * 100, 2)
+
+
+def calcular_indicadores_operaciones(
+    cant_muestra: int,
+    suma_defectos: int,
+    choice: int,
+    kilos_informados: float,
+    kilos_comerciales: float,
+):
 
     cant_muestra = int(cant_muestra or 0)
     suma_defectos = int(suma_defectos or 0)
-    fruta_embalable = max(cant_muestra - suma_defectos, 0)
-    porc_embalable = round((fruta_embalable / cant_muestra) * 100, 2) if cant_muestra else 0.0
-    porc_exportacion_ajustada = max(0.0, porc_embalable - 2.0)
-    fruta_sana_estimada = int(round(cant_muestra * (porc_exportacion_ajustada / 100.0)))
-    fruta_sana_estimada = min(fruta_sana_estimada, fruta_embalable)
-    choice_estimado = max(fruta_embalable - fruta_sana_estimada, 0)
-    porc_exportable = round((fruta_sana_estimada / cant_muestra) * 100, 2) if cant_muestra else 0.0
+    choice = max(int(choice or 0), 0)
+    kilos_informados = max(float(kilos_informados or 0), 0.0)
+    kilos_comerciales = max(float(kilos_comerciales or 0), 0.0)
+
+    fruta_comercial = max(suma_defectos, 0)
+    fruta_buena = max(cant_muestra - fruta_comercial, 0)
+    fruta_sana = max(fruta_buena - choice, 0)
+
+    porc_embalable = _porcentaje(fruta_buena, cant_muestra)
+    porc_choice = _porcentaje(choice, cant_muestra)
+    porc_descartable = _porcentaje(fruta_comercial, cant_muestra)
+    porc_sana = _porcentaje(fruta_sana, cant_muestra)
+
+    kilos_restantes = max(kilos_informados - kilos_comerciales, 0.0)
+    kilos_exportables = round(kilos_restantes, 2)
+    porc_comercial_kilos = _porcentaje(kilos_comerciales, kilos_informados)
+    porc_exportable = _porcentaje(kilos_exportables, kilos_informados)
+    porc_fbc = round(((porc_sana + porc_choice) * porc_comercial_kilos) / 100.0, 2)
 
     return {
-        "fruta_embalable": fruta_embalable,
-        "fruta_sana_estimada": fruta_sana_estimada,
-        "choice_estimado": choice_estimado,
+        "fruta_comercial": fruta_comercial,
+        "fruta_buena": fruta_buena,
+        "fruta_sana": fruta_sana,
         "porc_embalable": porc_embalable,
+        "porc_sana": porc_sana,
+        "porc_choice": porc_choice,
+        "porc_descartable": porc_descartable,
+        "porc_comercial_kilos": porc_comercial_kilos,
         "porc_exportable": porc_exportable,
-        "porc_exportacion_ajustada": porc_exportacion_ajustada
+        "porc_fbc": porc_fbc,
+        "kilos_restantes": kilos_restantes,
+        "kilos_exportables": kilos_exportables,
     }
 
 
@@ -106,10 +138,10 @@ def render_bloque_resultado(cant_muestra, suma_defectos, choice_disabled: bool =
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        st.metric("Fruta Comercial (acumulado)", resultado["fruta_comercial"])
+        st.metric("Fruta Comercial (defectos)", resultado["fruta_comercial"])
 
     with col2:
-        st.metric("Fruta Sana (acumulado)", resultado["fruta_sana"])
+        st.metric("Fruta Buena (Sana + Choice)", resultado["fruta_buena"])
 
     with col3:
         choice = st.number_input(
@@ -120,27 +152,27 @@ def render_bloque_resultado(cant_muestra, suma_defectos, choice_disabled: bool =
             key=choice_key,
             disabled=choice_disabled
         )
-        st.caption(f"Disponible sugerido: {resultado['choice_disponible']}")
+        st.caption(f"Disponible maximo sugerido: {resultado['choice_disponible']}")
 
     resultado = calcular_resultado(cant_muestra, suma_defectos, choice)
-    acumulado = resultado["fruta_comercial"]
-    diferencia = resultado["diferencia_muestra"]
+    acumulado = resultado["fruta_comercial"] + resultado["choice"]
+    diferencia = cant_muestra - acumulado
 
     if diferencia < 0:
         fondo = "#3f1d1d"
         borde = "#dc2626"
         texto = "#fecaca"
-        estado = f"Excede la muestra por {abs(diferencia)} unidad(es)"
+        estado = f"Defectos + Choice exceden la muestra por {abs(diferencia)} unidad(es)"
     elif diferencia == 0:
         fondo = "#17351f"
         borde = "#16a34a"
         texto = "#bbf7d0"
-        estado = "Toda la muestra quedo asignada a fruta comercial"
+        estado = "Defectos + Choice ya completan toda la muestra"
     else:
         fondo = "#132b45"
         borde = "#2563eb"
         texto = "#bfdbfe"
-        estado = f"Fruta sana calculada disponible: {resultado['fruta_sana']} unidad(es)"
+        estado = f"Pendiente por asignar: {diferencia} unidad(es)"
 
     with col_r2:
         st.markdown(
@@ -153,7 +185,7 @@ def render_bloque_resultado(cant_muestra, suma_defectos, choice_disabled: bool =
                 padding: 12px 14px;
                 text-align: right;
             ">
-                <div style="font-size: 0.85rem; opacity: 0.9;">Comercial acumulado</div>
+                <div style="font-size: 0.85rem; opacity: 0.9;">Defectos + Choice</div>
                 <div style="font-size: 1.8rem; font-weight: 700; line-height: 1.1;">{acumulado} / {cant_muestra}</div>
                 <div style="font-size: 0.9rem; margin-top: 4px;">{estado}</div>
             </div>

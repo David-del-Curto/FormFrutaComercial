@@ -3,15 +3,109 @@ import pandas as pd
 import streamlit as st
 
 
-def _weighted_percentage(df: pd.DataFrame, column: str) -> float:
-    if df.empty:
-        return 0.0
+MOVING_WINDOW_HOURS = 1
 
-    total_muestra = df["cant_muestra"].sum()
-    if total_muestra == 0:
-        return 0.0
 
-    return round(float((df[column] * df["cant_muestra"]).sum() / total_muestra), 2)
+def _safe_percentage(valor: float, base: float) -> float:
+    if base <= 0:
+        return 0.0
+    return round((valor / base) * 100, 2)
+
+
+def _prepare_records_for_kpi(records_df: pd.DataFrame) -> pd.DataFrame:
+    df = records_df.copy()
+    numeric_columns = [
+        "cant_muestra",
+        "suma_defectos",
+        "fruta_sana",
+        "choice",
+        "velocidad_kgh",
+        "kg_ultima_hora",
+    ]
+    for column in numeric_columns:
+        df[column] = pd.to_numeric(df[column], errors="coerce").fillna(0.0)
+
+    df["es_completo"] = pd.to_numeric(df.get("es_completo", 0), errors="coerce").fillna(0).astype(int)
+    df["updated_at_dt"] = pd.to_datetime(df["updated_at"], errors="coerce")
+    df["velocidad_kgh"] = df["velocidad_kgh"].clip(lower=0.0)
+    df["kg_ultima_hora"] = df["kg_ultima_hora"].clip(lower=0.0)
+    df["kg_comercial_validado"] = df[["kg_ultima_hora", "velocidad_kgh"]].min(axis=1)
+    df["kg_exportable_calc"] = (df["velocidad_kgh"] - df["kg_comercial_validado"]).clip(lower=0.0).round(2)
+
+    base_velocidad = df["velocidad_kgh"].where(df["velocidad_kgh"] > 0)
+    df["porc_comercial_kilos"] = (
+        (df["kg_comercial_validado"] / base_velocidad) * 100
+    ).fillna(0.0).round(2)
+    df["porc_exportable"] = (
+        (df["kg_exportable_calc"] / base_velocidad) * 100
+    ).fillna(0.0).round(2)
+
+    calidad_base = (df["fruta_sana"] + df["choice"] + df["suma_defectos"]).astype(float)
+    calidad_base = calidad_base.where(calidad_base > 0, df["cant_muestra"])
+    calidad_base = calidad_base.where(calidad_base > 0)
+
+    df["porc_sana"] = ((df["fruta_sana"] / calidad_base) * 100).fillna(0.0).round(2)
+    df["porc_choice"] = ((df["choice"] / calidad_base) * 100).fillna(0.0).round(2)
+    df["porc_descartable"] = ((df["suma_defectos"] / calidad_base) * 100).fillna(0.0).round(2)
+    df["porc_fbc"] = (
+        ((df["porc_sana"] + df["porc_choice"]) * df["porc_comercial_kilos"]) / 100
+    ).round(2)
+
+    return df
+
+
+def _last_moving_hour(records_df: pd.DataFrame) -> pd.DataFrame:
+    if records_df.empty:
+        return records_df
+
+    df_with_timestamp = records_df.loc[records_df["updated_at_dt"].notna()].copy()
+    if df_with_timestamp.empty:
+        return records_df.copy()
+
+    latest_timestamp = df_with_timestamp["updated_at_dt"].max()
+    cutoff = latest_timestamp - pd.Timedelta(hours=MOVING_WINDOW_HOURS)
+    return df_with_timestamp.loc[df_with_timestamp["updated_at_dt"] >= cutoff].copy()
+
+
+def _calcular_kpis_excel(records_df: pd.DataFrame) -> dict[str, float]:
+    if records_df.empty:
+        return {
+            "kg_exportable_total": 0.0,
+            "porc_exportable": 0.0,
+            "porc_comercial_kilos": 0.0,
+            "porc_sana": 0.0,
+            "porc_choice": 0.0,
+            "porc_descartable": 0.0,
+            "porc_fbc": 0.0,
+        }
+
+    velocidad_total = float(records_df["velocidad_kgh"].sum())
+    kg_comercial_total = float(records_df["kg_comercial_validado"].sum())
+    kg_exportable_total = round(max(velocidad_total - kg_comercial_total, 0.0), 2)
+    porc_comercial_kilos = _safe_percentage(kg_comercial_total, velocidad_total)
+    porc_exportable = _safe_percentage(kg_exportable_total, velocidad_total)
+
+    sana_total = float(records_df["fruta_sana"].sum())
+    choice_total = float(records_df["choice"].sum())
+    mala_total = float(records_df["suma_defectos"].sum())
+    calidad_total = sana_total + choice_total + mala_total
+    if calidad_total <= 0:
+        calidad_total = float(records_df["cant_muestra"].sum())
+
+    porc_sana = _safe_percentage(sana_total, calidad_total)
+    porc_choice = _safe_percentage(choice_total, calidad_total)
+    porc_descartable = _safe_percentage(mala_total, calidad_total)
+    porc_fbc = round(((porc_sana + porc_choice) * porc_comercial_kilos) / 100.0, 2)
+
+    return {
+        "kg_exportable_total": kg_exportable_total,
+        "porc_exportable": porc_exportable,
+        "porc_comercial_kilos": porc_comercial_kilos,
+        "porc_sana": porc_sana,
+        "porc_choice": porc_choice,
+        "porc_descartable": porc_descartable,
+        "porc_fbc": porc_fbc,
+    }
 
 
 def render_como_vamos(records_df: pd.DataFrame, defectos_df: pd.DataFrame, fecha_operacional: str):
@@ -21,26 +115,41 @@ def render_como_vamos(records_df: pd.DataFrame, defectos_df: pd.DataFrame, fecha
         st.info("Aun no hay formularios guardados para este dia operacional.")
         return
 
+    records_df = _prepare_records_for_kpi(records_df)
+    records_completos_df = records_df.loc[records_df["es_completo"] == 1].copy()
+    kpi_source_df = records_completos_df if not records_completos_df.empty else records_df
+    kpi_window_df = _last_moving_hour(kpi_source_df)
+    kpis = _calcular_kpis_excel(kpi_window_df)
+
     total_forms = len(records_df)
     completos = int(records_df["es_completo"].sum())
     borradores = int(total_forms - completos)
     muestra_total = int(records_df["cant_muestra"].sum())
-    porc_exportable = _weighted_percentage(records_df, "porc_exportable")
-    porc_embalable = _weighted_percentage(records_df, "porc_embalable")
-    porc_choice = _weighted_percentage(records_df, "porc_choice")
-    porc_descartable = _weighted_percentage(records_df, "porc_descartable")
 
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
     col1.metric("Formularios", total_forms)
     col2.metric("Completos", completos)
     col3.metric("Borradores", borradores)
     col4.metric("Muestra acumulada", muestra_total)
+    col5.metric("Kg Exportable 1h", kpis["kg_exportable_total"])
 
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("% Exportable", f"{porc_exportable} %")
-    col2.metric("% Embalable", f"{porc_embalable} %")
-    col3.metric("% Choice", f"{porc_choice} %")
-    col4.metric("% Descartable", f"{porc_descartable} %")
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
+    col1.metric("% Exportable", f"{kpis['porc_exportable']} %")
+    col2.metric("% Comercial Kg", f"{kpis['porc_comercial_kilos']} %")
+    col3.metric("% Sana", f"{kpis['porc_sana']} %")
+    col4.metric("% Choice", f"{kpis['porc_choice']} %")
+    col5.metric("% Descartable", f"{kpis['porc_descartable']} %")
+    col6.metric("% FBC", f"{kpis['porc_fbc']} %")
+
+    if kpi_window_df.empty:
+        st.caption("KPI sin registros validos en la ultima hora movil.")
+    else:
+        inicio = kpi_window_df["updated_at_dt"].min()
+        fin = kpi_window_df["updated_at_dt"].max()
+        st.caption(
+            "Formula Excel en ventana movil 1h: "
+            f"{inicio.strftime('%H:%M')} - {fin.strftime('%H:%M')}"
+        )
 
     st.divider()
 
@@ -65,8 +174,7 @@ def render_como_vamos(records_df: pd.DataFrame, defectos_df: pd.DataFrame, fecha
         st.markdown("Tendencia por hora")
 
         tendencia_df = records_df.copy()
-        tendencia_df["updated_at"] = pd.to_datetime(tendencia_df["updated_at"], errors="coerce")
-        tendencia_df["hora"] = tendencia_df["updated_at"].dt.strftime("%H:00")
+        tendencia_df["hora"] = tendencia_df["updated_at_dt"].dt.strftime("%H:00")
         tendencia_df = (
             tendencia_df.groupby("hora", dropna=False)
             .agg(
@@ -181,12 +289,17 @@ def render_como_vamos(records_df: pd.DataFrame, defectos_df: pd.DataFrame, fecha
         "variedad",
         "centro_display",
         "cant_muestra",
+        "velocidad_kgh",
+        "kg_comercial_validado",
+        "kg_exportable_calc",
         "estado_formulario",
         "campos_pendientes",
         "porc_exportable",
-        "porc_embalable",
+        "porc_comercial_kilos",
+        "porc_sana",
         "porc_choice",
         "porc_descartable",
+        "porc_fbc",
     ]].copy()
     detalle_df = detalle_df.rename(columns={
         "id_registro": "ID",
@@ -197,11 +310,16 @@ def render_como_vamos(records_df: pd.DataFrame, defectos_df: pd.DataFrame, fecha
         "variedad": "Variedad",
         "centro_display": "Centro",
         "cant_muestra": "Muestra",
+        "velocidad_kgh": "Kg/Hr",
+        "kg_comercial_validado": "Kg Comercial 1h",
+        "kg_exportable_calc": "Kg Exportable",
         "estado_formulario": "Estado",
         "campos_pendientes": "Pendientes",
         "porc_exportable": "% Exportable",
-        "porc_embalable": "% Embalable",
+        "porc_comercial_kilos": "% Comercial Kg",
+        "porc_sana": "% Sana",
         "porc_choice": "% Choice",
         "porc_descartable": "% Descartable",
+        "porc_fbc": "% FBC",
     })
     st.dataframe(detalle_df, hide_index=True, width='content')

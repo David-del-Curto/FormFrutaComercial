@@ -6,7 +6,9 @@ def validar_formulario(
     fruta_comercial: int,
     fruta_sana: int,
     choice: int,
-    verificador: str
+    verificador: str,
+    velocidad_kgh: float,
+    kg_ultima_hora: int,
 ):
     errores = []
 
@@ -20,7 +22,7 @@ def validar_formulario(
         errores.append("Debe ingresar Verificador")
 
     choice_maximo = max(cant_muestra - suma_defectos, 0)
-    total_resultado = fruta_comercial + fruta_sana
+    total_resultado = fruta_comercial + fruta_sana + choice
 
     if suma_defectos > cant_muestra:
         errores.append(
@@ -32,9 +34,22 @@ def validar_formulario(
             f"Choice ({choice}) no puede superar la disponibilidad restante ({choice_maximo})"
         )
 
-    if fruta_comercial != suma_defectos + choice:
+    if fruta_comercial != suma_defectos:
         errores.append(
-            "Fruta Comercial debe ser igual a Defectos + Choice"
+            "Fruta Comercial debe ser igual a Defectos"
+        )
+
+    velocidad_kgh = float(velocidad_kgh or 0)
+    kg_ultima_hora = int(kg_ultima_hora or 0)
+
+    if kg_ultima_hora > 0 and velocidad_kgh <= 0:
+        errores.append(
+            "Para informar Kilos Fruta Comercial (ultima hora), Velocidad Kg/h debe ser mayor a 0."
+        )
+    elif velocidad_kgh > 0 and kg_ultima_hora > velocidad_kgh:
+        velocidad_txt = int(velocidad_kgh) if velocidad_kgh.is_integer() else round(velocidad_kgh, 2)
+        errores.append(
+            f"Kilos Fruta Comercial (ultima hora) ({kg_ultima_hora}) no puede superar Velocidad Kg/h ({velocidad_txt})."
         )
 
     if total_resultado > cant_muestra:

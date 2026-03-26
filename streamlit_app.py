@@ -60,6 +60,63 @@ def _ensure_nullable_option_state(key, options):
     return st.session_state[key]
 
 
+def _validar_formulario_compat(
+    nro_lote,
+    centro,
+    cant_muestra,
+    suma_defectos,
+    fruta_comercial,
+    fruta_sana,
+    choice,
+    verificador,
+    velocidad_kgh,
+    kg_ultima_hora,
+):
+    try:
+        return validar_formulario(
+            nro_lote,
+            centro,
+            cant_muestra,
+            suma_defectos,
+            fruta_comercial,
+            fruta_sana,
+            choice,
+            verificador,
+            velocidad_kgh,
+            kg_ultima_hora,
+        )
+    except TypeError as exc:
+        # Compatibilidad con instancia caliente de Streamlit que mantiene
+        # una version anterior de core.validators (firma de 8 parametros).
+        if "takes 8 positional arguments but 10 were given" not in str(exc):
+            raise
+
+        errores = validar_formulario(
+            nro_lote,
+            centro,
+            cant_muestra,
+            suma_defectos,
+            fruta_comercial,
+            fruta_sana,
+            choice,
+            verificador,
+        )
+
+        velocidad_val = float(velocidad_kgh or 0)
+        kg_val = int(kg_ultima_hora or 0)
+        if kg_val > 0 and velocidad_val <= 0:
+            errores.append(
+                "Para informar Kilos Fruta Comercial (ultima hora), Velocidad Kg/h debe ser mayor a 0."
+            )
+        elif velocidad_val > 0 and kg_val > velocidad_val:
+            velocidad_txt = int(velocidad_val) if velocidad_val.is_integer() else round(velocidad_val, 2)
+            errores.append(
+                f"Kilos Fruta Comercial (ultima hora) ({kg_val}) no puede superar Velocidad Kg/h ({velocidad_txt})."
+            )
+
+        return errores
+
+
 st.set_page_config(
     page_title="Planilla Fruta Comercial",
     layout="wide"
@@ -85,9 +142,11 @@ def _reset_after_save(saved):
 
 def _queue_form_reset():
     st.session_state["_pending_form_reset"] = True
+    st.session_state.pop("_pending_form_load_id", None)
 
 
 def _queue_form_load(record_id):
+    _queue_form_reset()
     st.session_state["_pending_form_load_id"] = record_id
 
 render_header("images/Imagen2.jpg", "Planilla Fruta Comercial")
@@ -97,7 +156,7 @@ tab_formulario, tab_bi = st.tabs(["Formulario", "Estatus Operación"])
 with tab_formulario:
     st.caption(
         f"Dia operacional actual: {get_current_operational_date()} | "
-        "Turnos: 06:00-14:59, 15:00-23:59, 00:00-05:59"
+        "Turnos: 07:00-17:00, 17:00-02:00"
     )
 
     post_save_notice = st.session_state.pop("post_save_notice", None)
@@ -234,9 +293,10 @@ with tab_formulario:
     _ensure_default_state("form_verificador", "")
     _ensure_default_state("form_fecha", datetime.today())
     _ensure_default_state("form_nro_lote", "")
-    _ensure_default_state("form_cant_muestra", 1)
+    _ensure_default_state("form_cant_muestra", 0)
     _ensure_default_state("form_lugar_codigo", next(iter(LUGAR_SELECCION)))
     _ensure_default_state("velocidad_kgh", 0.0)
+    _ensure_default_state("kg_ultima_hora", 0)
     _ensure_default_state("form_observaciones", "")
     _ensure_default_state("editing_record_id", None)
 
@@ -323,7 +383,7 @@ with tab_formulario:
 
         cant_muestra = st.number_input(
             "Cantidad Muestra Frutos",
-            min_value=1,
+            min_value=0,
             step=1,
             key="form_cant_muestra",
             disabled=captura_bloqueada
@@ -346,13 +406,25 @@ with tab_formulario:
             disabled=captura_bloqueada
         )
 
-        velocidad_kgh = st.number_input(
-            "Velocidad Kg/h",
-            min_value=0.0,
-            step=0.1,
-            key="velocidad_kgh",
-            disabled=velocidades_bloqueadas
-        )
+        col_velocidad, col_kg_ultima_hora = st.columns(2)
+
+        with col_velocidad:
+            velocidad_kgh = st.number_input(
+                "Velocidad Kg/h",
+                min_value=0.0,
+                step=0.1,
+                key="velocidad_kgh",
+                disabled=velocidades_bloqueadas
+            )
+
+        with col_kg_ultima_hora:
+            kg_ultima_hora = st.number_input(
+                "Kilos Fruta Comercial (ultima hora)",
+                min_value=0,
+                step=1,
+                key="kg_ultima_hora",
+                disabled=velocidades_bloqueadas
+            )
 
     st.divider()
 
@@ -397,9 +469,15 @@ with tab_formulario:
     if submit:
         centro_display = f"{centro['CodCentro_SAP']} - {centro['Centro_Logistico']}"
         productor_display = f"{productor['CodProductor_SAP']} - {productor['Productor']}"
-        indicadores_operaciones = calcular_indicadores_operaciones(cant_muestra, suma_defectos)
+        indicadores_operaciones = calcular_indicadores_operaciones(
+            cant_muestra,
+            suma_defectos,
+            resultado["choice"],
+            velocidad_kgh,
+            kg_ultima_hora,
+        )
 
-        errores = validar_formulario(
+        errores = _validar_formulario_compat(
             nro_lote,
             centro,
             cant_muestra,
@@ -407,7 +485,9 @@ with tab_formulario:
             resultado["fruta_comercial"],
             resultado["fruta_sana"],
             resultado["choice"],
-            verificador
+            verificador,
+            velocidad_kgh,
+            kg_ultima_hora,
         )
 
         porc_embalable = indicadores_operaciones["porc_embalable"]
@@ -415,11 +495,6 @@ with tab_formulario:
         if centro_sin_definir:
             porc_exportacion = terceros["porc_export_manual"]
             label_exportacion = "% Exportable (manual)"
-
-            if porc_exportacion > porc_embalable:
-                errores.append(
-                    f"% Exportable manual ({porc_exportacion}) no puede superar % Embalable ({porc_embalable})"
-                )
         else:
             porc_exportacion = indicadores_operaciones["porc_exportable"]
             label_exportacion = "% Exportable"
@@ -429,8 +504,18 @@ with tab_formulario:
                 st.error(error)
             st.stop()
 
-        porc_choice = round((resultado["choice"] / cant_muestra) * 100, 2)
-        porc_descartable = round((suma_defectos / cant_muestra) * 100, 2)
+        porc_choice = indicadores_operaciones["porc_choice"]
+        porc_descartable = indicadores_operaciones["porc_descartable"]
+        porc_comercial_kilos = indicadores_operaciones["porc_comercial_kilos"]
+        porc_fbc = indicadores_operaciones["porc_fbc"]
+        kilos_exportables = indicadores_operaciones["kilos_exportables"]
+        base_kilos_disponible = float(velocidad_kgh or 0) > 0
+
+        exportable_modal = porc_exportacion
+        comercial_modal = porc_comercial_kilos if base_kilos_disponible else "Pendiente"
+        fbc_modal = porc_fbc if base_kilos_disponible else "Pendiente"
+        if not centro_sin_definir and not base_kilos_disponible:
+            exportable_modal = "Pendiente"
 
         defectos_guardar = {
             codigo: int(valor)
@@ -479,6 +564,7 @@ with tab_formulario:
             "lugar_codigo": lugar_codigo,
             "lugar_nombre": LUGAR_SELECCION[lugar_codigo],
             "velocidad_kgh": velocidad_kgh,
+            "kg_ultima_hora": kg_ultima_hora,
             "porc_export_manual": terceros["porc_export_manual"],
             "velocidad_manual": terceros["velocidad_manual"],
             "centro_sin_definir": centro_sin_definir,
@@ -501,19 +587,28 @@ with tab_formulario:
             "Cant Muestra": cant_muestra,
             "Lugar": LUGAR_SELECCION[lugar_codigo],
             "Fruta Comercial (captura)": resultado["fruta_comercial"],
+            "Fruta Buena (Sana + Choice)": resultado["fruta_buena"],
             "Fruta Sana (captura)": resultado["fruta_sana"],
             "Choice (captura)": resultado["choice"],
             "Velocidad Kg/h": velocidad_kgh,
+            "Kilos Fruta Comercial (ultima hora)": kg_ultima_hora,
+            "Kg Exportable (Velocidad - Comercial)": kilos_exportables,
             "Velocidad Tercero Kg/h": (
                 terceros["velocidad_manual"]
                 if aplica_velocidad_tercero
                 else "No aplica"
             ),
-            label_exportacion: porc_exportacion,
+            label_exportacion: exportable_modal,
             "% Embalable": porc_embalable,
+            "% Comercial Kg": comercial_modal,
+            "% FBC": fbc_modal,
             "% Choice": porc_choice,
             "% Descartable": porc_descartable,
         }
+        if not base_kilos_disponible:
+            resumen["Nota KPI kilos"] = (
+                "Complete Velocidad Kg/h para calcular % Exportable, % Comercial Kg y % FBC."
+            )
 
         def confirmar():
             saved = guardar_formulario_staging(
@@ -524,9 +619,10 @@ with tab_formulario:
             _reset_after_save(saved)
 
         metricas = [
-            (label_exportacion, porc_exportacion),
+            (label_exportacion, exportable_modal),
             ("% Embalable", porc_embalable),
-            ("% Choice", porc_choice),
+            ("% Comercial Kg", comercial_modal),
+            ("% FBC", fbc_modal),
             ("% Descartable", porc_descartable),
         ]
 

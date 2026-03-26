@@ -1,5 +1,5 @@
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
@@ -12,6 +12,11 @@ from services.cache_sqlite import get_conn
 TIMEZONE = ZoneInfo("America/Santiago")
 DEFAULT_SOURCE_SYSTEM = "streamlit_form_fruta_comercial"
 SOURCE_SYSTEM_ENV_VAR = "FORM_FRUTA_SOURCE_SYSTEM"
+TURNO_1_INICIO = time(7, 0)
+TURNO_1_FIN = time(17, 0)
+TURNO_2_FIN = time(2, 0)
+RANGO_TURNO_1 = "07:00-17:00"
+RANGO_TURNO_2 = "17:00-02:00"
 
 
 def get_source_system() -> str:
@@ -73,6 +78,7 @@ REGISTRO_COLUMN_DEFS = {
     "porc_descartable": "REAL NOT NULL DEFAULT 0",
     "porc_export_manual": "INTEGER",
     "velocidad_kgh": "REAL",
+    "kg_ultima_hora": "INTEGER",
     "velocidad_manual": "REAL",
     "lugar_codigo": "TEXT",
     "lugar_nombre": "TEXT",
@@ -118,22 +124,24 @@ def calcular_contexto_operacional(reference_dt: datetime | None = None):
     else:
         dt = dt.astimezone(TIMEZONE)
 
+    hora_actual = dt.time()
     fecha_operacional = dt.date()
-    if dt.hour < 6:
+    if hora_actual <= TURNO_2_FIN:
         fecha_operacional = fecha_operacional - timedelta(days=1)
 
-    if 6 <= dt.hour < 15:
+    if TURNO_1_INICIO <= hora_actual < TURNO_1_FIN:
         turno_codigo = "T1"
         turno_nombre = "Turno 1"
-        rango_turno = "06:00-14:59"
-    elif 15 <= dt.hour < 24:
+        rango_turno = RANGO_TURNO_1
+    elif hora_actual >= TURNO_1_FIN or hora_actual <= TURNO_2_FIN:
         turno_codigo = "T2"
         turno_nombre = "Turno 2"
-        rango_turno = "15:00-23:59"
+        rango_turno = RANGO_TURNO_2
     else:
-        turno_codigo = "T3"
-        turno_nombre = "Turno 3"
-        rango_turno = "00:00-05:59"
+        # 02:01-06:59 queda etiquetado como Turno 1 para mantener solo dos turnos.
+        turno_codigo = "T1"
+        turno_nombre = "Turno 1"
+        rango_turno = RANGO_TURNO_1
 
     return {
         "fecha_operacional": fecha_operacional.isoformat(),
@@ -255,6 +263,7 @@ def init_local_store():
             porc_descartable REAL NOT NULL DEFAULT 0,
             porc_export_manual INTEGER,
             velocidad_kgh REAL,
+            kg_ultima_hora INTEGER,
             velocidad_manual REAL,
             lugar_codigo TEXT,
             lugar_nombre TEXT,
@@ -372,6 +381,7 @@ def save_formulario_local(payload, defectos, record_id: int | None = None):
         "porc_descartable": float(payload["porc_descartable"]),
         "porc_export_manual": int(payload["porc_export_manual"]),
         "velocidad_kgh": float(payload["velocidad_kgh"]),
+        "kg_ultima_hora": int(payload.get("kg_ultima_hora")),
         "velocidad_manual": float(payload["velocidad_manual"]),
         "lugar_codigo": payload["lugar_codigo"],
         "lugar_nombre": payload["lugar_nombre"],
@@ -417,6 +427,7 @@ def save_formulario_local(payload, defectos, record_id: int | None = None):
                 porc_descartable,
                 porc_export_manual,
                 velocidad_kgh,
+                kg_ultima_hora,
                 velocidad_manual,
                 lugar_codigo,
                 lugar_nombre,
@@ -433,7 +444,7 @@ def save_formulario_local(payload, defectos, record_id: int | None = None):
                 created_at,
                 updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 registro["source_system"],
@@ -460,6 +471,7 @@ def save_formulario_local(payload, defectos, record_id: int | None = None):
                 registro["porc_descartable"],
                 registro["porc_export_manual"],
                 registro["velocidad_kgh"],
+                registro["kg_ultima_hora"],
                 registro["velocidad_manual"],
                 registro["lugar_codigo"],
                 registro["lugar_nombre"],
@@ -511,6 +523,7 @@ def save_formulario_local(payload, defectos, record_id: int | None = None):
                 porc_descartable = ?,
                 porc_export_manual = ?,
                 velocidad_kgh = ?,
+                kg_ultima_hora = ?,
                 velocidad_manual = ?,
                 lugar_codigo = ?,
                 lugar_nombre = ?,
@@ -552,6 +565,7 @@ def save_formulario_local(payload, defectos, record_id: int | None = None):
                 registro["porc_descartable"],
                 registro["porc_export_manual"],
                 registro["velocidad_kgh"],
+                registro["kg_ultima_hora"],
                 registro["velocidad_manual"],
                 registro["lugar_codigo"],
                 registro["lugar_nombre"],
