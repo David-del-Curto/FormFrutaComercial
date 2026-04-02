@@ -359,6 +359,14 @@ BEGIN
         UNION ALL SELECT 'RAM', 'Ramaleo'
         UNION ALL SELECT 'RG', 'Roce Grave'
         UNION ALL SELECT 'RUS', 'Russet Grave'
+        UNION ALL SELECT 'VEN', 'Venturia'
+        UNION ALL SELECT 'PEN', 'Penacho'
+        UNION ALL SELECT 'QSOL', 'Quemado de sol'
+        UNION ALL SELECT 'INF', 'Infiltracion'
+        UNION ALL SELECT 'PARD', 'Pardeamiento'
+        UNION ALL SELECT 'COR', 'Corcho'
+        UNION ALL SELECT 'EUL', 'Eulia'
+        UNION ALL SELECT 'DQU', 'Dano quimico'
     ) AS src
         ON tgt.codigo_defecto = src.codigo_defecto
     WHEN MATCHED THEN

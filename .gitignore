@@ -3,6 +3,40 @@ env/
 venv/
 __pycache__/
 *.pyc
+*.pyo
+*.egg-info/
+*.egg
+pip-wheel-metadata/
+build/
+dist/
+.env
+*.env
+.env.*
+.local
+*.log
+.tmp/
+.venvStreamlit
+
+# Streamlit secrets + local settings
 .streamlit/secrets.toml
+.local.settings.json
+local.settings.json
+
+# Guardar scripts o doc no versionados (sólo si se desea)
 sql/
 docs/
+
+# Docker/OS temporales
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# Sublime/VSCode
+.vscode/
+.idea/
+
+# Node.js
+node_modules/
+package-lock.json
+npm-debug.log

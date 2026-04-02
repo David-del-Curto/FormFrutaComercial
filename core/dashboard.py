@@ -43,6 +43,9 @@ def _prepare_records_for_kpi(records_df: pd.DataFrame) -> pd.DataFrame:
     calidad_base = (df["fruta_sana"] + df["choice"] + df["suma_defectos"]).astype(float)
     calidad_base = calidad_base.where(calidad_base > 0, df["cant_muestra"])
     calidad_base = calidad_base.where(calidad_base > 0)
+    fraccion_calidad_aprovechable = (
+        (df["fruta_sana"] + df["choice"]) / calidad_base
+    ).fillna(0.0)
 
     df["porc_sana"] = ((df["fruta_sana"] / calidad_base) * 100).fillna(0.0).round(2)
     df["porc_choice"] = ((df["choice"] / calidad_base) * 100).fillna(0.0).round(2)
@@ -50,6 +53,7 @@ def _prepare_records_for_kpi(records_df: pd.DataFrame) -> pd.DataFrame:
     df["porc_fbc"] = (
         ((df["porc_sana"] + df["porc_choice"]) * df["porc_comercial_kilos"]) / 100
     ).round(2)
+    df["kg_fbc_h"] = (df["kg_comercial_validado"] * fraccion_calidad_aprovechable).round(2)
 
     return df
 
@@ -173,38 +177,36 @@ def render_como_vamos(records_df: pd.DataFrame, defectos_df: pd.DataFrame, fecha
     with col_left:
         st.markdown("Tendencia por hora")
 
-        tendencia_df = records_df.copy()
+        tendencia_df = kpi_source_df.copy()
         tendencia_df["hora"] = tendencia_df["updated_at_dt"].dt.strftime("%H:00")
         tendencia_df = (
             tendencia_df.groupby("hora", dropna=False)
             .agg(
-                formularios=("id_registro", "count"),
-                muestra=("cant_muestra", "sum")
+                kg_fbc_h=("kg_fbc_h", "sum"),
             )
             .reset_index()
             .dropna(subset=["hora"])
             .sort_values("hora")
         )
+        tendencia_df["kg_fbc_h"] = tendencia_df["kg_fbc_h"].round(2)
 
         if not tendencia_df.empty:
             chart = (
                 alt.Chart(tendencia_df)
-                .transform_fold(
-                    ["formularios", "muestra"],
-                    as_=["serie", "valor"]
-                )
                 .mark_line(point=True)
                 .encode(
                     x=alt.X("hora:N", title="Hora"),
-                    y=alt.Y("valor:Q", title="Valor"),
-                    color=alt.Color("serie:N", title="Serie"),
-                    tooltip=["hora:N", "serie:N", "valor:Q"]
+                    y=alt.Y("kg_fbc_h:Q", title="Kg FBC/h"),
+                    tooltip=[
+                        alt.Tooltip("hora:N", title="Hora"),
+                        alt.Tooltip("kg_fbc_h:Q", title="Kg FBC/h", format=".2f"),
+                    ],
                 )
                 .properties(height=280)
             )
             st.altair_chart(chart, width='content')
         else:
-            st.info("Aun no hay suficientes registros para construir la tendencia por hora.")
+            st.info("Aun no hay suficientes registros para construir la tendencia de Kg FBC/h por hora.")
 
     with col_right:
         st.markdown("Muestra por turno")

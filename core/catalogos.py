@@ -86,4 +86,12 @@ DEFECTOS = {
     "RAM": "Ramaleo",
     "RG": "Roce Grave",
     "RUS": "Russet Grave",
+    "VEN": "Venturia",
+    "PEN": "Penacho",
+    "QSOL": "Quemado de sol",
+    "INF": "Infiltraci\u00f3n",
+    "PARD": "Pardeamiento",
+    "COR": "Corcho",
+    "EUL": "Eulia",
+    "DQU": "Da\u00f1o qu\u00edmico",
 }
