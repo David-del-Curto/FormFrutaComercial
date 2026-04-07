@@ -238,7 +238,7 @@ def render_bloque_terceros(
         )
 
         if not aplica_velocidad_tercero:
-            st.caption("No aplica para centros DC02 y DC10.")
+            st.caption("Solo aplica para centro 0001 - [sin definir].")
 
     return {
         "porc_export_manual": porc_export_manual,

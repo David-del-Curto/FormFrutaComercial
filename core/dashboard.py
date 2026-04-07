@@ -151,7 +151,7 @@ def render_como_vamos(records_df: pd.DataFrame, defectos_df: pd.DataFrame, fecha
         inicio = kpi_window_df["updated_at_dt"].min()
         fin = kpi_window_df["updated_at_dt"].max()
         st.caption(
-            "Formula Excel en ventana movil 1h: "
+            "Formula en ventana movil 1h: "
             f"{inicio.strftime('%H:%M')} - {fin.strftime('%H:%M')}"
         )
 

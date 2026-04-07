@@ -251,11 +251,11 @@ with tab_formulario:
 
     if nuevo_pressed:
         _queue_form_reset()
-        st.rerun()
+        st.rerun(scope="app")
 
     if cargar_pressed and registro_seleccionado is not None:
         _queue_form_load(registro_seleccionado)
-        st.rerun()
+        st.rerun(scope="app")
 
     editing_record_id = st.session_state.get("editing_record_id")
     registro_editando = get_registro(editing_record_id) if editing_record_id else None
@@ -264,7 +264,7 @@ with tab_formulario:
             f"El registro local #{editing_record_id} ya no esta disponible."
         )
         _queue_form_reset()
-        st.rerun()
+        st.rerun(scope="app")
 
     editando_borrador = registro_editando is not None and int(registro_editando.get("es_completo") or 0) == 0
     editando_completo = registro_editando is not None and int(registro_editando.get("es_completo") or 0) == 1

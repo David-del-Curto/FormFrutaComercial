@@ -16,13 +16,16 @@ dist/
 *.log
 .tmp/
 .venvStreamlit
+core/__pycache__/
+services/__pycache__/
+scripts/__pycache__/
 
 # Streamlit secrets + local settings
 .streamlit/secrets.toml
 .local.settings.json
 local.settings.json
 
-# Guardar scripts o doc no versionados (sólo si se desea)
+# scripts o doc no versionados
 sql/
 docs/
 
