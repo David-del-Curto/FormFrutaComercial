@@ -1,6 +1,3 @@
-CENTROS_SIN_VELOCIDAD_TERCERO = {"DC02", "DC10"}
-
-
 def normalizar_centro_codigo(centro) -> str:
     if isinstance(centro, dict):
         value = centro.get("CodCentro_SAP", "")
@@ -25,7 +22,11 @@ def es_centro_sin_definir(centro) -> bool:
 
 
 def usa_velocidad_tercero(centro) -> bool:
-    return normalizar_centro_codigo(centro) not in CENTROS_SIN_VELOCIDAD_TERCERO
+    if isinstance(centro, dict):
+        return es_centro_sin_definir(centro)
+
+    # Fallback cuando solo se conoce el codigo.
+    return normalizar_centro_codigo(centro) == "0001"
 
 
 def obtener_reglas_centro(centro) -> dict:

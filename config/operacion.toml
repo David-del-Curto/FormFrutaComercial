@@ -1,0 +1,36 @@
+# Configuracion operativa para pantallas y correos.
+# Cada mini PC debe abrir la app con ?screen_id=<id> segun la pantalla asignada.
+
+[screens.dc05_lin_01]
+label = "Pantalla DC05 LIN_01"
+linea = "LIN_01"
+view = "estatus"
+refresh_seconds = 600
+lock_filters = true
+hide_sidebar = true
+
+[screens.dc05_lin_02]
+label = "Pantalla DC05 LIN_02"
+linea = "LIN_02"
+view = "estatus"
+refresh_seconds = 600
+lock_filters = true
+hide_sidebar = true
+
+[screens.dc10_lin_03]
+label = "Pantalla DC10 LIN_03"
+linea = "LIN_03"
+view = "estatus"
+refresh_seconds = 600
+lock_filters = true
+hide_sidebar = true
+
+[mail]
+global_recipients = ["bastian.barahona@ddc.cl"]
+digest_times = ["08:00", "12:00", "17:00", "22:00"]
+alert_threshold_fbc = 1.5
+
+[mail.line_recipients]
+LIN_01 = ["bastian.barahona@ddc.cl"]
+LIN_02 = []
+LIN_03 = []

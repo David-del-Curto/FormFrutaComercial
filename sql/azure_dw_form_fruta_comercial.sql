@@ -1,14 +1,19 @@
 /*
     Form Fruta Comercial - Azure SQL DW bootstrap
     ------------------------------------------------
-    Este script crea un esquema sencillo de staging + DW para poblar
-    formularios y defectos desde la app o desde un ETL intermedio.
+    SCRIPT LEGADO.
 
-    Recomendacion clave:
-    - source_business_key debe ser una clave global, estable e inmutable
-      por formulario (idealmente un GUID generado por la app o el ETL).
-    - No uses solo id_registro local como llave global si hay mas de un
-      equipo o dispositivo capturando datos.
+    Este archivo se conserva solo como referencia historica del primer modelo
+    autocontenido en esquema dw. Para nuevos despliegues usar:
+    - sql/azure_dw_form_fruta_comercial_refactored.sql
+
+    Motivo:
+    - el script refactorizado reutiliza las dimensiones dbo.Dim_* existentes;
+    - evita duplicar catalogos maestros en esquema dw;
+    - concentra la carga vigente sobre dbo.sp_process_formulario_stage.
+
+    Si necesitas un entorno nuevo, no ejecutes este script salvo que
+    explicitamente quieras reinstalar el modelo legacy completo en esquema dw.
 */
 
 IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'stg')
