@@ -1,7 +1,8 @@
-from datetime import datetime
+from datetime import date, datetime
 
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 
 from engine import (
     cargar_centros,
@@ -19,7 +20,7 @@ from core.forms import (
     render_bloque_resultado,
     render_bloque_terceros,
 )
-from core.ui import mostrar_resumen_dialog, render_header
+from core.ui import mostrar_resumen_dialog, render_header, render_operacion_layout
 from core.validators import validar_formulario
 from services.cache_sqlite import init_cache
 from services.cache_warmup import warm_cache
@@ -34,6 +35,7 @@ from services.local_store import (
     init_local_store,
     list_recent_registros,
 )
+from services.operacion_config import get_screen_config, load_operacion_config
 from services.save_form import guardar_formulario_staging
 
 
@@ -119,7 +121,8 @@ def _validar_formulario_compat(
 
 st.set_page_config(
     page_title="Planilla Fruta Comercial",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
 init_cache()
@@ -149,11 +152,67 @@ def _queue_form_load(record_id):
     _queue_form_reset()
     st.session_state["_pending_form_load_id"] = record_id
 
+
+def _get_query_param(name: str) -> str | None:
+    value = st.query_params.get(name)
+    if isinstance(value, list):
+        value = value[0] if value else None
+
+    value = str(value or "").strip()
+    return value or None
+
+
+def _activate_kiosk_autorefresh(screen_config: dict):
+    refresh_seconds = int(screen_config.get("refresh_seconds") or 600)
+    interval_ms = max(refresh_seconds, 60) * 1000
+    refresh_key = f"operacion_kiosk_refresh_{screen_config['screen_id']}"
+
+    try:
+        from streamlit_autorefresh import st_autorefresh
+    except ImportError:
+        components.html(
+            f"""
+            <script>
+            const refreshKey = "{refresh_key}";
+            if (!window[refreshKey]) {{
+                window[refreshKey] = window.setTimeout(function() {{
+                    window.parent.location.reload();
+                }}, {interval_ms});
+            }}
+            </script>
+            """,
+            height=0,
+            width=0,
+        )
+    else:
+        st_autorefresh(interval=interval_ms, key=refresh_key)
+
 render_header("images/Imagen2.jpg", "Planilla Fruta Comercial")
 
-tab_formulario, tab_bi = st.tabs(["Formulario", "Estatus Operación"])
+operacion_config = load_operacion_config()
+screen_id = _get_query_param("screen_id")
+screen_context = get_screen_config(screen_id, operacion_config)
 
-with tab_formulario:
+if screen_context is None and screen_id:
+    st.sidebar.warning(f"screen_id '{screen_id}' no esta configurado.")
+
+if screen_context is not None and screen_context.get("view") == "estatus":
+    st.session_state["main_menu_section"] = "Estatus Operacion"
+    seccion_activa = "Estatus Operacion"
+else:
+    st.sidebar.markdown("---")
+    seccion_activa = st.sidebar.radio(
+        "Menu",
+        ["Formulario", "Estatus Operacion"],
+        key="main_menu_section",
+    )
+
+if seccion_activa == "Estatus Operacion":
+    render_operacion_layout(hide_sidebar=bool(screen_context and screen_context.get("hide_sidebar")))
+    if screen_context is not None:
+        _activate_kiosk_autorefresh(screen_context)
+
+if seccion_activa == "Formulario":
     st.caption(
         f"Dia operacional actual: {get_current_operational_date()} | "
         "Turnos: 07:00-17:00, 17:00-02:00"
@@ -223,7 +282,7 @@ with tab_formulario:
 
     st.subheader("Gestion Formularios")
 
-    col_sel, col_load, col_new = st.columns([4, 1, 1])
+    col_sel, col_load, col_new = st.columns([4, 1, 1], vertical_alignment="bottom")
 
     with col_sel:
         registro_seleccionado = st.selectbox(
@@ -419,7 +478,7 @@ with tab_formulario:
 
         with col_kg_ultima_hora:
             kg_ultima_hora = st.number_input(
-                "Kilos Fruta Comercial (ultima hora)",
+                "Kg/h Fruta Comercial",
                 min_value=0,
                 step=1,
                 key="kg_ultima_hora",
@@ -663,15 +722,33 @@ with tab_formulario:
     else:
         st.info("Aun no hay registros guardados localmente.")
 
-with tab_bi:
-    fecha_operacional_bi = st.date_input(
-        "Dia operacional",
-        value=datetime.fromisoformat(get_current_operational_date()).date(),
-        key="bi_fecha_operacional"
-    )
+if seccion_activa == "Estatus Operacion":
+    if screen_context is not None:
+        st.session_state["bi_fecha_operacional"] = datetime.fromisoformat(
+            get_current_operational_date()
+        ).date()
+    elif "bi_fecha_operacional" not in st.session_state:
+        st.session_state["bi_fecha_operacional"] = datetime.fromisoformat(
+            get_current_operational_date()
+        ).date()
+
+    fecha_operacional_bi = st.session_state["bi_fecha_operacional"]
+    if isinstance(fecha_operacional_bi, datetime):
+        fecha_operacional_bi = fecha_operacional_bi.date()
+    elif not isinstance(fecha_operacional_bi, date):
+        fecha_operacional_bi = datetime.fromisoformat(
+            str(fecha_operacional_bi)
+        ).date()
+    st.session_state["bi_fecha_operacional"] = fecha_operacional_bi
 
     fecha_operacional_str = fecha_operacional_bi.strftime("%Y-%m-%d")
     registros_df = get_registros_df(fecha_operacional_str)
     defectos_df = get_defectos_df(fecha_operacional_str)
 
-    render_como_vamos(registros_df, defectos_df, fecha_operacional_str)
+    render_como_vamos(
+        records_df=registros_df,
+        defectos_df=defectos_df,
+        fecha_operacional=fecha_operacional_str,
+        fecha_operacional_value=fecha_operacional_bi,
+        screen_context=screen_context,
+    )

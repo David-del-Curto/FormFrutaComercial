@@ -1,25 +1,34 @@
-import base64
 import math
-from pathlib import Path
 
 import streamlit as st
 
 
-def img_to_base64(path: str) -> str:
-    data = Path(path).read_bytes()
-    return base64.b64encode(data).decode()
-
-
 def render_header(image_path: str, title: str):
-    b64 = img_to_base64(image_path)
+    st.sidebar.image(image_path, width=120)
+    st.sidebar.markdown(f"### {title}")
+    st.sidebar.caption("Control operacional diario")
+
+
+def render_operacion_layout(hide_sidebar: bool = False):
+    sidebar_css = ""
+    if hide_sidebar:
+        sidebar_css = """
+        [data-testid="stSidebar"] { display: none; }
+        [data-testid="collapsedControl"] { display: none; }
+        """
 
     st.markdown(
         f"""
-        <div style="text-align:center; margin-top:10px;">
-            <img src="data:image/jpg;base64,{b64}"
-                 style="width:220px; display:block; margin:0 auto;" />
-            <h1 style="margin: 16px 0 0 0;">{title}</h1>
-        </div>
+        <style>
+        [data-testid="stHeader"] {{
+            display: none;
+        }}
+        [data-testid="stMainBlockContainer"] {{
+            padding-top: 0.8rem;
+            padding-bottom: 1.5rem;
+        }}
+        {sidebar_css}
+        </style>
         """,
         unsafe_allow_html=True,
     )

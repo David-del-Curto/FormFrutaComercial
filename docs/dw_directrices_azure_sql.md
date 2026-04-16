@@ -3,74 +3,78 @@
 ## 1. Criterio funcional para `Especie_Principal`
 
 No conviene usar `Especie_Principal` como una restriccion dura de seleccion de linea.
-Si la conviertes en regla obligatoria, en una contingencia operacional como mantencion,
-desviacion de flujo o reconfiguracion temporal de linea vas a bloquear una captura valida.
+Si se convierte en regla obligatoria, una contingencia operacional valida puede bloquear la captura.
 
-La recomendacion es:
+La recomendacion vigente es:
 
 - `Centro` define el conjunto permitido de lineas.
-- `Especie_Principal` solo sugiere, prioriza o marca lineas recomendadas.
-- La validacion dura debe seguir siendo por `centro + linea`.
-
-Eso te deja dos beneficios:
-
-- Flujo guiado para la operacion normal.
-- Flexibilidad real para operar con lineas alternativas cuando haga falta.
+- `Especie_Principal` solo sugiere o prioriza lineas recomendadas.
+- La validacion dura sigue siendo por `centro + linea`.
 
 ## 2. Modelo recomendado
 
-El script [azure_dw_form_fruta_comercial.sql](C:/DEV/FormFrutaComercial/sql/azure_dw_form_fruta_comercial.sql) crea:
+El script vigente es [azure_dw_form_fruta_comercial_refactored.sql](C:/DEV/FormFrutaComercial/sql/azure_dw_form_fruta_comercial_refactored.sql).
 
-- `stg.FormularioHeader`
-- `stg.FormularioDefecto`
-- `dw.DimCentro`
-- `dw.DimProductor`
-- `dw.DimEspecie`
-- `dw.DimVariedad`
-- `dw.DimLinea`
-- `dw.DimLugarSeleccion`
-- `dw.DimTurno`
-- `dw.DimDefecto`
-- `dw.FactFormulario`
-- `dw.FactFormularioDefecto`
+Ese script:
 
-Grano propuesto:
+- reutiliza dimensiones maestras existentes:
+  - `dbo.Dim_CentrosLogisticos`
+  - `dbo.Dim_Especies`
+  - `dbo.Dim_Productores`
+  - `dbo.Dim_Variedades`
+- crea staging:
+  - `stg.FormularioHeader`
+  - `stg.FormularioDefecto`
+- crea dimensiones nuevas del dominio:
+  - `dbo.DimLinea`
+  - `dbo.DimLugarSeleccion`
+  - `dbo.DimTurno`
+  - `dbo.DimDefecto`
+- crea los hechos:
+  - `dbo.FactFormulario`
+  - `dbo.FactFormularioDefecto`
 
-- `FactFormulario`: un registro por formulario guardado en la app.
-- `FactFormularioDefecto`: un registro por formulario y codigo de defecto.
+El archivo [azure_dw_form_fruta_comercial.sql](C:/DEV/FormFrutaComercial/sql/azure_dw_form_fruta_comercial.sql) queda solo como referencia historica del modelo legacy en esquema `dw`.
 
-## 3. Regla mas importante: clave de negocio
+## 3. Grano recomendado
 
-Para poblar el DW correctamente necesitas una clave estable por formulario:
+- `dbo.FactFormulario`: un registro por formulario capturado en la app.
+- `dbo.FactFormularioDefecto`: un registro por formulario y codigo de defecto.
+
+## 4. Regla mas importante: clave de negocio
+
+Para poblar el DW correctamente se necesita una clave estable por formulario:
 
 - `source_business_key`
 
 Debe ser:
 
-- Globalmente unica.
-- Inmutable entre borrador y completo.
-- Compartida entre encabezado y defectos.
+- globalmente unica;
+- inmutable entre borrador y completo;
+- compartida entre encabezado y defectos.
 
-Lo ideal es un GUID generado en la app.
+La app ya persiste `source_business_key` en SQLite y lo conserva entre borrador y completo.
+La app tambien persiste `source_system`, configurable por ambiente con `FORM_FRUTA_SOURCE_SYSTEM`.
 
-Implementacion actual del MVP:
+No conviene usar solo `id_registro` local como llave DW si la captura puede ocurrir desde mas de un equipo.
 
-- la app ya persiste `source_business_key` en SQLite y lo conserva entre borrador y completo;
-- la app ya persiste `source_system`;
-- `source_system` puede fijarse por ambiente con la variable `FORM_FRUTA_SOURCE_SYSTEM`.
+## 5. Secuencia de carga
 
-No recomiendo usar solo `id_registro` local como llave DW si la captura ocurre desde mas de un equipo, porque vas a tener colisiones entre dispositivos.
+1. Ejecutar una vez las dimensiones base `dbo.Dim_*` si la base destino todavia no las tiene.
+2. Ejecutar [azure_dw_form_fruta_comercial_refactored.sql](C:/DEV/FormFrutaComercial/sql/azure_dw_form_fruta_comercial_refactored.sql).
+3. Ejecutar `EXEC dbo.sp_seed_static_catalogs;`.
+4. Insertar el lote crudo en `stg.FormularioHeader`.
+5. Insertar los defectos del mismo lote en `stg.FormularioDefecto`.
+6. Ejecutar `EXEC dbo.sp_process_formulario_stage;`.
+7. Validar conteos y formularios sin defecto.
 
-## 4. Secuencia de carga
+## 6. Regla vigente de carga
 
-1. Ejecuta una vez el script base en Azure SQL.
-2. Ejecuta `EXEC dw.sp_seed_static_catalogs;`
-3. Inserta el lote crudo en `stg.FormularioHeader`.
-4. Inserta los defectos del mismo lote en `stg.FormularioDefecto`.
-5. Ejecuta `EXEC dw.sp_process_formulario_stage;`
-6. Valida conteos y formularios sin defecto.
+- `dbo.sp_process_formulario_stage` carga al DW solo formularios con `es_completo = 1`.
+- Los formularios en borrador permanecen en staging con `dw_loaded_at = NULL`.
+- Cuando un formulario pasa de borrador a completo, el mismo `source_business_key` permite completar la carga sin duplicar hechos.
 
-## 5. Contrato minimo de datos
+## 7. Contrato minimo de datos
 
 Encabezado:
 
@@ -88,7 +92,7 @@ Encabezado:
 - `fruta_comercial`
 - `fruta_sana`
 - `choice`
-- `%` y velocidades
+- porcentajes y velocidades
 - `estado_formulario`
 - `es_completo`
 - `updated_at`
@@ -101,27 +105,18 @@ Defectos:
 - `cantidad`
 - `updated_at`
 
-## 6. Recomendacion operativa
-
-Si vas a poblar el DW desde la app:
-
-- genera `source_business_key` al crear el formulario, no al guardarlo como completo;
-- conserva esa misma clave cuando el registro pase de borrador a completo;
-- envia siempre header y defectos del mismo formulario dentro del mismo batch;
-- reutiliza `source_system` para distinguir origenes, por ejemplo `streamlit_form_fruta_comercial`.
-
-## 7. Validaciones que conviene dejar en el ETL
+## 8. Validaciones recomendadas en ETL
 
 - `cant_muestra >= fruta_comercial`
 - `fruta_comercial = suma_defectos + choice`
-- `porc_exportable <= porc_embalable` cuando aplique
 - `centro_codigo` no nulo en carga productiva
 - no cargar duplicados del mismo `source_business_key`
+- no promover a hechos formularios con `es_completo = 0`
 
-## 8. Ejemplo minimo de uso
+## 9. Ejemplo minimo de uso
 
 ```sql
-EXEC dw.sp_seed_static_catalogs;
+EXEC dbo.sp_seed_static_catalogs;
 
 INSERT INTO stg.FormularioHeader (
     source_system,
@@ -210,5 +205,5 @@ VALUES
 ('streamlit_form_fruta_comercial', '6c3e3eb6-6f4f-4f16-bf2b-c230ecb28577', 'HAO', 'Herida Abierta (Oxidada)', 8, SYSUTCDATETIME()),
 ('streamlit_form_fruta_comercial', '6c3e3eb6-6f4f-4f16-bf2b-c230ecb28577', 'MAC', 'Machucon', 10, SYSUTCDATETIME());
 
-EXEC dw.sp_process_formulario_stage;
+EXEC dbo.sp_process_formulario_stage;
 ```

@@ -1,3 +1,4 @@
+import json
 import os
 from datetime import datetime, time, timedelta
 from uuid import uuid4
@@ -105,6 +106,30 @@ REGISTRO_DEFECTOS_COLUMN_DEFS = {
     "cantidad": "INTEGER NOT NULL DEFAULT 0",
     "created_at": "TEXT NOT NULL",
     "updated_at": "TEXT NOT NULL"
+}
+
+
+OPERACION_DISPATCH_LOG_COLUMN_DEFS = {
+    "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
+    "dispatch_kind": "TEXT NOT NULL",
+    "fecha_operacional": "TEXT NOT NULL",
+    "target_key": "TEXT NOT NULL DEFAULT ''",
+    "schedule_key": "TEXT NOT NULL DEFAULT ''",
+    "recipients": "TEXT",
+    "metadata_json": "TEXT",
+    "sent_at": "TEXT NOT NULL",
+}
+
+
+OPERACION_ALERT_STATE_COLUMN_DEFS = {
+    "alert_code": "TEXT NOT NULL",
+    "fecha_operacional": "TEXT NOT NULL",
+    "target_key": "TEXT NOT NULL",
+    "is_active": "INTEGER NOT NULL DEFAULT 0",
+    "last_value": "REAL NOT NULL DEFAULT 0",
+    "activated_at": "TEXT",
+    "recovered_at": "TEXT",
+    "updated_at": "TEXT NOT NULL",
 }
 
 
@@ -297,8 +322,42 @@ def init_local_store():
         """
     )
 
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS operacion_dispatch_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            dispatch_kind TEXT NOT NULL,
+            fecha_operacional TEXT NOT NULL,
+            target_key TEXT NOT NULL DEFAULT '',
+            schedule_key TEXT NOT NULL DEFAULT '',
+            recipients TEXT,
+            metadata_json TEXT,
+            sent_at TEXT NOT NULL,
+            UNIQUE (dispatch_kind, fecha_operacional, target_key, schedule_key)
+        )
+        """
+    )
+
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS operacion_alert_state (
+            alert_code TEXT NOT NULL,
+            fecha_operacional TEXT NOT NULL,
+            target_key TEXT NOT NULL,
+            is_active INTEGER NOT NULL DEFAULT 0,
+            last_value REAL NOT NULL DEFAULT 0,
+            activated_at TEXT,
+            recovered_at TEXT,
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY (alert_code, fecha_operacional, target_key)
+        )
+        """
+    )
+
     _ensure_columns(conn, "registro", REGISTRO_COLUMN_DEFS)
     _ensure_columns(conn, "registro_defectos", REGISTRO_DEFECTOS_COLUMN_DEFS)
+    _ensure_columns(conn, "operacion_dispatch_log", OPERACION_DISPATCH_LOG_COLUMN_DEFS)
+    _ensure_columns(conn, "operacion_alert_state", OPERACION_ALERT_STATE_COLUMN_DEFS)
     _ensure_registro_source_identity(conn)
 
     conn.execute(
@@ -312,6 +371,18 @@ def init_local_store():
     )
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_registro_defectos_registro ON registro_defectos(id_registro)"
+    )
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_operacion_dispatch_lookup
+        ON operacion_dispatch_log(dispatch_kind, fecha_operacional, target_key, schedule_key)
+        """
+    )
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_operacion_alert_state_lookup
+        ON operacion_alert_state(alert_code, fecha_operacional, target_key)
+        """
     )
 
     conn.commit()
@@ -763,6 +834,155 @@ def get_registros_para_dw_df(
     df = pd.read_sql_query(query, conn, params=tuple(params))
     conn.close()
     return df
+
+
+def was_operacion_dispatch_sent(
+    dispatch_kind: str,
+    fecha_operacional: str,
+    target_key: str = "",
+    schedule_key: str = "",
+) -> bool:
+    init_local_store()
+    conn = get_conn()
+    row = conn.execute(
+        """
+        SELECT 1
+        FROM operacion_dispatch_log
+        WHERE dispatch_kind = ?
+          AND fecha_operacional = ?
+          AND target_key = ?
+          AND schedule_key = ?
+        LIMIT 1
+        """,
+        (dispatch_kind, fecha_operacional, target_key, schedule_key),
+    ).fetchone()
+    conn.close()
+    return row is not None
+
+
+def log_operacion_dispatch(
+    dispatch_kind: str,
+    fecha_operacional: str,
+    target_key: str = "",
+    schedule_key: str = "",
+    recipients: list[str] | None = None,
+    metadata: dict | None = None,
+) -> bool:
+    init_local_store()
+    conn = get_conn()
+    before_changes = conn.total_changes
+    conn.execute(
+        """
+        INSERT OR IGNORE INTO operacion_dispatch_log (
+            dispatch_kind,
+            fecha_operacional,
+            target_key,
+            schedule_key,
+            recipients,
+            metadata_json,
+            sent_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            dispatch_kind,
+            fecha_operacional,
+            target_key,
+            schedule_key,
+            json.dumps(recipients or [], ensure_ascii=True),
+            json.dumps(metadata or {}, ensure_ascii=True, default=str),
+            get_local_now().isoformat(timespec="seconds"),
+        ),
+    )
+    inserted = conn.total_changes > before_changes
+    conn.commit()
+    conn.close()
+    return inserted
+
+
+def get_operacion_alert_state(alert_code: str, fecha_operacional: str, target_key: str) -> dict | None:
+    init_local_store()
+    conn = get_conn()
+    row = conn.execute(
+        """
+        SELECT *
+        FROM operacion_alert_state
+        WHERE alert_code = ?
+          AND fecha_operacional = ?
+          AND target_key = ?
+        """,
+        (alert_code, fecha_operacional, target_key),
+    ).fetchone()
+    conn.close()
+    return dict(row) if row is not None else None
+
+
+def set_operacion_alert_state(
+    alert_code: str,
+    fecha_operacional: str,
+    target_key: str,
+    is_active: bool,
+    last_value: float,
+    activated_at: str | None = None,
+    recovered_at: str | None = None,
+):
+    init_local_store()
+    conn = get_conn()
+    existing = conn.execute(
+        """
+        SELECT activated_at, recovered_at
+        FROM operacion_alert_state
+        WHERE alert_code = ?
+          AND fecha_operacional = ?
+          AND target_key = ?
+        """,
+        (alert_code, fecha_operacional, target_key),
+    ).fetchone()
+
+    timestamp = get_local_now().isoformat(timespec="seconds")
+    activated_value = activated_at
+    recovered_value = recovered_at
+
+    if existing is not None:
+        if activated_value is None:
+            activated_value = existing["activated_at"]
+        if recovered_value is None:
+            recovered_value = existing["recovered_at"]
+
+    conn.execute(
+        """
+        INSERT INTO operacion_alert_state (
+            alert_code,
+            fecha_operacional,
+            target_key,
+            is_active,
+            last_value,
+            activated_at,
+            recovered_at,
+            updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(alert_code, fecha_operacional, target_key)
+        DO UPDATE SET
+            is_active = excluded.is_active,
+            last_value = excluded.last_value,
+            activated_at = excluded.activated_at,
+            recovered_at = excluded.recovered_at,
+            updated_at = excluded.updated_at
+        """,
+        (
+            alert_code,
+            fecha_operacional,
+            target_key,
+            int(bool(is_active)),
+            float(last_value or 0.0),
+            activated_value,
+            recovered_value,
+            timestamp,
+        ),
+    )
+    conn.commit()
+    conn.close()
 
 
 def get_defectos_para_dw_df(
