@@ -26,4 +26,5 @@ python -m compileall streamlit_app.py core services scripts engine.py
 
 ## Notas
 - Revisar `config/operacion.toml` antes de probar pantallas `kiosk` o correos.
-- Revisar `.streamlit/secrets.toml` antes de probar SMTP.
+- Crear o ajustar `.streamlit/secrets.toml` a partir de `.streamlit/secrets.example.toml` segun el ambiente.
+- Mantener `.streamlit/secrets.toml` y `data/cache.db` como archivos locales del servidor para evitar conflictos en `git pull`.

@@ -1,0 +1,12 @@
+[Unit]
+Description=Form Fruta Comercial email runner
+After=formfruta.service
+Requires=formfruta.service
+
+[Service]
+Type=oneshot
+User=formfruta
+Group=formfruta
+WorkingDirectory=/opt/form-fruta-comercial
+Environment=COMPOSE_PROJECT_NAME=formfruta
+ExecStart=/usr/bin/docker compose -f /opt/form-fruta-comercial/compose.prod.yml exec -T app python scripts/send_operacion_status_email.py

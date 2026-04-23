@@ -146,7 +146,7 @@ def _kpi_cards(snapshot: dict) -> str:
         ("Borradores", format_number_latam(summary["borradores"], 0)),
         ("Muestra", format_number_latam(summary["muestra_total"], 0)),
         ("Kg Exportable 1h", format_quantity_latam(kpis["kg_exportable_total"])),
-        ("% FBC 1h", format_percent_latam(kpis["porc_fbc"], 1)),
+        ("% FBC Absoluto 1h", format_percent_latam(kpis["porc_fbc"], 1)),
     ]
     pieces = []
     for label, value in cards:
@@ -198,7 +198,7 @@ def _line_table(line_snapshots: dict[str, dict]) -> str:
         "<thead><tr>"
         "<th style='text-align:left;padding:8px 10px;border-bottom:1px solid #4b5563;'>Linea</th>"
         "<th style='text-align:right;padding:8px 10px;border-bottom:1px solid #4b5563;'>Formularios</th>"
-        "<th style='text-align:right;padding:8px 10px;border-bottom:1px solid #4b5563;'>% FBC 1h</th>"
+        "<th style='text-align:right;padding:8px 10px;border-bottom:1px solid #4b5563;'>% FBC Absoluto 1h</th>"
         "<th style='text-align:right;padding:8px 10px;border-bottom:1px solid #4b5563;'>Kg Exportable 1h</th>"
         "<th style='text-align:left;padding:8px 10px;border-bottom:1px solid #4b5563;'>Estado</th>"
         "</tr></thead><tbody>"
@@ -236,7 +236,7 @@ def build_alert_email(fecha_operacional: str, linea: str, snapshot: dict, thresh
     threshold_label = format_number_latam(threshold, 1)
     title = f"ALERTA FBC {line_label} {fecha_operacional}"
     body = (
-        f"<p>La linea <strong>{escape(line_label)}</strong> ({escape(linea)}) supero el umbral de <strong>{escape(threshold_label)} %</strong> en el KPI <strong>% FBC 1h</strong>.</p>"
+        f"<p>La linea <strong>{escape(line_label)}</strong> ({escape(linea)}) supero el umbral de <strong>{escape(threshold_label)} %</strong> en el KPI <strong>% FBC Absoluto 1h</strong>.</p>"
         f"<p>Valor actual: <strong>{escape(current_value)}</strong>.</p>"
         + _kpi_cards(snapshot)
         + _window_summary(snapshot)

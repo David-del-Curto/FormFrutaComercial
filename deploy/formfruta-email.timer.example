@@ -1,0 +1,10 @@
+[Unit]
+Description=Form Fruta Comercial periodic email dispatch
+
+[Timer]
+OnCalendar=*:0/5
+Persistent=true
+Unit=formfruta-email.service
+
+[Install]
+WantedBy=timers.target

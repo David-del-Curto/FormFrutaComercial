@@ -1,14 +1,18 @@
 from datetime import date, datetime
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 
 from engine import (
+    DatabaseConnectionError,
     cargar_centros,
     cargar_especies,
     cargar_productores,
     cargar_variedades,
+    clear_connection_runtime_events,
+    get_connection_runtime_events,
 )
 from core.business_rules import obtener_reglas_centro
 from core.catalogos import DEFECTOS, LINEAS, LUGAR_SELECCION, obtener_lineas_por_centro
@@ -37,6 +41,117 @@ from services.local_store import (
 )
 from services.operacion_config import get_screen_config, load_operacion_config
 from services.save_form import guardar_formulario_staging
+
+
+MANUAL_USUARIO_PATH = Path(__file__).resolve().parent / "docs" / "manual_usuario_estatus_operacion.md"
+PRODUCTORES_COLUMNS = ["CodProductor_SAP", "Productor"]
+CENTROS_COLUMNS = ["CodCentro_SAP", "Centro_Logistico"]
+ESPECIES_COLUMNS = ["idEspecie", "Especie"]
+
+
+def _empty_df(columns):
+    return pd.DataFrame(columns=columns)
+
+
+def _load_base_catalogs():
+    clear_connection_runtime_events()
+    catalogs = {
+        "productores": _empty_df(PRODUCTORES_COLUMNS),
+        "centros": _empty_df(CENTROS_COLUMNS),
+        "especies": _empty_df(ESPECIES_COLUMNS),
+    }
+
+    loaders = [
+        ("productores", cargar_productores, PRODUCTORES_COLUMNS),
+        ("centros", cargar_centros, CENTROS_COLUMNS),
+        ("especies", cargar_especies, ESPECIES_COLUMNS),
+    ]
+
+    for key, loader, columns in loaders:
+        try:
+            catalogs[key] = loader()
+        except DatabaseConnectionError:
+            catalogs[key] = _empty_df(columns)
+
+    events = get_connection_runtime_events()
+    mode = "online"
+    if any(not event.get("used_cache") for event in events):
+        mode = "offline"
+    elif any(event.get("used_cache") for event in events):
+        mode = "degraded"
+
+    return catalogs, {"mode": mode, "events": events}
+
+
+def _load_variedades_safe(id_especie):
+    if id_especie is None:
+        return []
+    try:
+        return cargar_variedades(int(id_especie)).to_dict("records")
+    except DatabaseConnectionError:
+        return []
+
+
+def _render_connection_status(status: dict):
+    if status["mode"] == "online":
+        return
+
+    lines = []
+    seen = set()
+    for event in status.get("events", []):
+        diagnostic = event.get("diagnostic") or {}
+        key = (diagnostic.get("category"), bool(event.get("used_cache")))
+        if key in seen:
+            continue
+        seen.add(key)
+        suffix = "Usando cache local." if event.get("used_cache") else "Sin cache utilizable para este catalogo."
+        lines.append(f"- {diagnostic.get('title', 'Falla de conectividad')}: {diagnostic.get('action', '')} {suffix}".strip())
+
+    body = "\n".join(lines)
+    if status["mode"] == "degraded":
+        st.warning(
+            "Azure SQL no estuvo disponible para todas las lecturas. La app sigue operando con cache SQLite local.\n"
+            f"{body}"
+        )
+        return
+
+    st.error(
+        "Azure SQL no esta disponible y no hay catalogos suficientes para inicializar el formulario.\n"
+        f"{body}"
+    )
+
+
+def _render_recent_registros(limit: int = 25):
+    st.divider()
+    st.subheader("Registros Locales Recientes")
+
+    registros_tabla = list_recent_registros(limit=limit)
+    if not registros_tabla:
+        st.info("Aun no hay registros guardados localmente.")
+        return
+
+    df_registros_tabla = pd.DataFrame(registros_tabla)[[
+        "id_registro",
+        "updated_at",
+        "fecha_operacional",
+        "turno_nombre",
+        "lote",
+        "especie",
+        "cant_muestra",
+        "estado_formulario",
+        "campos_pendientes",
+    ]].rename(columns={
+        "id_registro": "ID",
+        "updated_at": "Actualizado",
+        "fecha_operacional": "Dia Operacional",
+        "turno_nombre": "Turno",
+        "lote": "Lote",
+        "especie": "Especie",
+        "cant_muestra": "Muestra",
+        "estado_formulario": "Estado",
+        "campos_pendientes": "Pendientes",
+    })
+    st.dataframe(df_registros_tabla, hide_index=True, width="stretch")
 
 
 def _ensure_default_state(key, value):
@@ -187,6 +302,22 @@ def _activate_kiosk_autorefresh(screen_config: dict):
     else:
         st_autorefresh(interval=interval_ms, key=refresh_key)
 
+
+def _render_manual_usuario():
+    st.subheader("Manual de Usuario")
+    st.caption("Guia operativa para captura de formularios y uso de Estatus Operacion.")
+
+    try:
+        manual_markdown = MANUAL_USUARIO_PATH.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        st.error(f"No se encontro el manual en {MANUAL_USUARIO_PATH}.")
+        return
+    except OSError as exc:
+        st.error(f"No se pudo leer el manual de usuario: {exc}")
+        return
+
+    st.markdown(manual_markdown)
+
 render_header("images/Imagen2.jpg", "Planilla Fruta Comercial")
 
 operacion_config = load_operacion_config()
@@ -203,7 +334,7 @@ else:
     st.sidebar.markdown("---")
     seccion_activa = st.sidebar.radio(
         "Menu",
-        ["Formulario", "Estatus Operacion"],
+        ["Formulario", "Estatus Operacion", "Manual de Usuario"],
         key="main_menu_section",
     )
 
@@ -222,14 +353,25 @@ if seccion_activa == "Formulario":
     if post_save_notice:
         st.success(post_save_notice)
 
-    df_productores = cargar_productores()
+    catalogs, catalog_status = _load_base_catalogs()
+    _render_connection_status(catalog_status)
+
+    df_productores = catalogs["productores"]
     productores = df_productores.to_dict("records")
 
-    df_centros = cargar_centros()
+    df_centros = catalogs["centros"]
     centros = df_centros.to_dict("records")
 
-    df_especies = cargar_especies()
+    df_especies = catalogs["especies"]
     especies = df_especies.to_dict("records")
+
+    if not productores or not centros or not especies:
+        st.info(
+            "La captura queda bloqueada hasta recuperar catalogos remotos o cache local suficiente. "
+            "Puede seguir revisando Estatus Operacion y el Manual de Usuario."
+        )
+        _render_recent_registros(limit=25)
+        st.stop()
 
     if st.session_state.pop("_pending_form_reset", False):
         reset_form_state()
@@ -365,7 +507,7 @@ if seccion_activa == "Formulario":
     especie_default = _ensure_option_state("form_especie", especies)
 
     variedades = (
-        cargar_variedades(int(especie_default["idEspecie"])).to_dict("records")
+        _load_variedades_safe(especie_default["idEspecie"])
         if especie_default is not None
         else []
     )
@@ -437,7 +579,7 @@ if seccion_activa == "Formulario":
             disabled=captura_bloqueada
         )
 
-        variedades = cargar_variedades(int(especie["idEspecie"])).to_dict("records")
+        variedades = _load_variedades_safe(especie["idEspecie"])
         _ensure_option_state("form_variedad", variedades)
 
         cant_muestra = st.number_input(
@@ -660,13 +802,13 @@ if seccion_activa == "Formulario":
             label_exportacion: exportable_modal,
             "% Embalable": porc_embalable,
             "% Comercial Kg": comercial_modal,
-            "% FBC": fbc_modal,
+            "% FBC Absoluto": fbc_modal,
             "% Choice": porc_choice,
             "% Descartable": porc_descartable,
         }
         if not base_kilos_disponible:
             resumen["Nota KPI kilos"] = (
-                "Complete Velocidad Kg/h para calcular % Exportable, % Comercial Kg y % FBC."
+                "Complete Velocidad Kg/h para calcular % Exportable, % Comercial Kg y % FBC Absoluto."
             )
 
         def confirmar():
@@ -681,7 +823,7 @@ if seccion_activa == "Formulario":
             (label_exportacion, exportable_modal),
             ("% Embalable", porc_embalable),
             ("% Comercial Kg", comercial_modal),
-            ("% FBC", fbc_modal),
+            ("% FBC Absoluto", fbc_modal),
             ("% Descartable", porc_descartable),
         ]
 
@@ -692,35 +834,10 @@ if seccion_activa == "Formulario":
             confirmar
         )
 
-    st.divider()
-    st.subheader("Registros Locales Recientes")
+    _render_recent_registros(limit=25)
 
-    registros_tabla = list_recent_registros(limit=25)
-    if registros_tabla:
-        df_registros_tabla = pd.DataFrame(registros_tabla)[[
-            "id_registro",
-            "updated_at",
-            "fecha_operacional",
-            "turno_nombre",
-            "lote",
-            "especie",
-            "cant_muestra",
-            "estado_formulario",
-            "campos_pendientes",
-        ]].rename(columns={
-            "id_registro": "ID",
-            "updated_at": "Actualizado",
-            "fecha_operacional": "Dia Operacional",
-            "turno_nombre": "Turno",
-            "lote": "Lote",
-            "especie": "Especie",
-            "cant_muestra": "Muestra",
-            "estado_formulario": "Estado",
-            "campos_pendientes": "Pendientes",
-        })
-        st.dataframe(df_registros_tabla, hide_index=True, width='stretch')
-    else:
-        st.info("Aun no hay registros guardados localmente.")
+if seccion_activa == "Manual de Usuario":
+    _render_manual_usuario()
 
 if seccion_activa == "Estatus Operacion":
     if screen_context is not None:

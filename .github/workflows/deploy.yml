@@ -1,0 +1,68 @@
+name: Build And Deploy
+
+on:
+  push:
+    branches:
+      - main
+      - feature/mvp-streamlit
+  workflow_dispatch:
+
+jobs:
+  validate-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install ODBC Driver 18
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ca-certificates curl gnupg unixodbc unixodbc-dev gcc g++
+          sudo mkdir -p /etc/apt/keyrings
+          curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | sudo gpg --dearmor --batch --yes -o /etc/apt/keyrings/microsoft.gpg
+          sudo chmod go+r /etc/apt/keyrings/microsoft.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/microsoft.gpg] https://packages.microsoft.com/debian/12/prod bookworm main" | sudo tee /etc/apt/sources.list.d/microsoft-prod.list >/dev/null
+          sudo apt-get update
+          sudo ACCEPT_EULA=Y apt-get install -y --no-install-recommends msodbcsql18
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Compile project
+        run: python -m compileall streamlit_app.py core services scripts engine.py
+
+      - name: Smoke runtime without database
+        run: python scripts/smoke_test_runtime.py --skip-db
+
+      - name: Smoke email job
+        run: python scripts/send_operacion_status_email.py --dry-run --force-digest --skip-alerts
+
+      - name: Build Docker image
+        run: docker build -t form-fruta-comercial:ci .
+
+      - name: Configure SSH
+        env:
+          PROD_SSH_HOST: ${{ secrets.PROD_SSH_HOST }}
+          PROD_SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$PROD_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$PROD_SSH_HOST" >> ~/.ssh/known_hosts
+
+      - name: Deploy to production
+        env:
+          DEPLOY_BRANCH: ${{ github.ref_name }}
+          PROD_SSH_HOST: ${{ secrets.PROD_SSH_HOST }}
+          PROD_SSH_USER: ${{ secrets.PROD_SSH_USER }}
+          PROD_APP_DIR: ${{ secrets.PROD_APP_DIR }}
+        run: |
+          ssh "$PROD_SSH_USER@$PROD_SSH_HOST" "bash -lc 'cd \"$PROD_APP_DIR\" && bash deploy/deploy_prod.sh \"$PROD_APP_DIR\" \"$DEPLOY_BRANCH\"'"

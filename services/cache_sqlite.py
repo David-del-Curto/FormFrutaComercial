@@ -33,7 +33,7 @@ def init_cache():
     conn.close()
 
 
-def get_cache(key):
+def get_cache_entry(key, allow_expired: bool = False):
     conn = get_conn()
 
     row = conn.execute(
@@ -47,11 +47,26 @@ def get_cache(key):
         return None
 
     value, created_at, ttl = row
+    age_seconds = int(time.time()) - created_at
+    is_expired = age_seconds > ttl
 
-    if int(time.time()) - created_at > ttl:
+    if is_expired and not allow_expired:
         return None
 
-    return json.loads(value)
+    return {
+        "value": json.loads(value),
+        "created_at": created_at,
+        "ttl": ttl,
+        "age_seconds": age_seconds,
+        "is_expired": is_expired,
+    }
+
+
+def get_cache(key, allow_expired: bool = False):
+    entry = get_cache_entry(key, allow_expired=allow_expired)
+    if entry is None:
+        return None
+    return entry["value"]
 
 
 def set_cache(key, value, ttl):

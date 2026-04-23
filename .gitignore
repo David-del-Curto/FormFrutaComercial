@@ -22,12 +22,15 @@ scripts/__pycache__/
 
 # Streamlit secrets + local settings
 .streamlit/secrets.toml
+data/cache.db
+data/smoke_streamlit_*.log
 .local.settings.json
 local.settings.json
 
-# scripts o doc no versionados
+# scripts locales no versionados
 sql/
-docs/
+logs/
+out/
 
 # Docker/OS temporales
 *.swp

@@ -2,195 +2,364 @@
 
 ## Objetivo
 
-Esta guia deja el package listo para despliegue en Oracle Linux 9 / RHEL con:
+Esta guia deja el proyecto listo para despliegue en Oracle Linux 9 / RHEL usando el runtime real del repositorio:
 
-- Python en `.venv` Linux
-- `pyodbc` operativo
-- Microsoft ODBC Driver 18
-- Streamlit detras de `nginx`
-- servicio `systemd`
-- smoke tests de runtime y Azure SQL
+- Docker Engine + Docker Compose plugin
+- `compose.prod.yml` para produccion
+- `compose.local.yml` solo para pruebas locales
+- Streamlit publicado en `0.0.0.0:8502`
+- acceso operativo directo por `http://192.168.200.74:8502/`
+- `systemd` para arranque y redeploy
+- smoke tests del runtime, Azure SQL y consultas operativas
 
-## 1. Prerrequisitos del host
+## Estado validado antes del server
 
-Instala paquetes base:
+La aplicacion ya quedo validada en Docker local con:
 
-```bash
-sudo dnf install -y git gcc gcc-c++ make python3.11 python3.11-devel openssl openssl-devel unixODBC unixODBC-devel nginx
-```
+- build de la imagen OK
+- contenedor `healthy`
+- `python scripts/smoke_test_runtime.py --skip-db` OK
+- `python scripts/smoke_test_runtime.py` OK
+- `python scripts/smoke_test_runtime.py --sp-checks` OK
+- `python scripts/send_operacion_status_email.py --dry-run --force-digest --skip-alerts` OK
 
-Verifica Python:
-
-```bash
-python3.11 --version
-```
-
-## 2. Instalar Microsoft ODBC Driver 18
-
-Segun Microsoft Learn, para RHEL y Oracle Linux debes registrar el repo de Microsoft e instalar `msodbcsql18`. Referencia oficial:
-
-- https://learn.microsoft.com/sql/connect/odbc/linux-mac/installing-the-microsoft-odbc-driver-for-sql-server
-
-Comandos:
-
-```bash
-cd /tmp
-curl -sSL -O https://packages.microsoft.com/config/rhel/9/packages-microsoft-prod.rpm
-sudo yum install -y packages-microsoft-prod.rpm
-rm -f packages-microsoft-prod.rpm
-sudo yum remove -y unixODBC-utf16 unixODBC-utf16-devel
-sudo ACCEPT_EULA=Y yum install -y msodbcsql18 mssql-tools18
-```
-
-Verifica el driver:
-
-```bash
-odbcinst -q -d
-```
-
-Debes ver:
+Evidencia minima esperada:
 
 ```text
-[ODBC Driver 18 for SQL Server]
+sql_ping: 1
+centros_rows: 4
+especies_rows: 12
+SMOKE TEST OK
 ```
 
-## 3. Usuario de servicio y carpeta de despliegue
+## Valores operativos que debes congelar
+
+Antes de tocar el servidor, deja definidos estos valores:
+
+```text
+APP_DIR=/opt/form-fruta-comercial
+APP_USER=formfruta
+APP_GROUP=formfruta
+PUBLIC_HOST=192.168.200.74
+PUBLIC_URL=http://192.168.200.74:8502/
+STREAMLIT_BIND=0.0.0.0:8502
+LOCAL_URL=http://localhost:8502/
+TIMEZONE=America/Santiago
+```
+
+Notas:
+
+- `compose.local.yml` no se copia ni se usa en el servidor.
+- El servidor debe usar `.streamlit/secrets.toml` del ambiente productivo, no el de DEV.
+- Si en produccion cambia Azure SQL, SMTP o `FORM_FRUTA_SOURCE_SYSTEM`, debes dejarlo resuelto antes del primer build remoto.
+- El despliegue automatico por GitHub Actions debe operar sobre la misma branch que esta publicada en el servidor.
+
+## 1. Preparar el host Oracle Linux 9 / RHEL
+
+Actualiza el sistema e instala dependencias base:
 
 ```bash
-sudo useradd --system --create-home --shell /sbin/nologin formfruta
+sudo dnf update -y
+sudo dnf install -y git nginx curl dnf-plugins-core
+```
+
+Instala Docker Engine y Compose plugin:
+
+```bash
+sudo dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+```
+
+Activa Docker:
+
+```bash
+sudo systemctl enable --now docker
+sudo systemctl status docker --no-pager
+docker compose version
+```
+
+Crea usuario y carpeta operativa:
+
+```bash
+sudo useradd --system --create-home --home-dir /opt/form-fruta-comercial --shell /bin/bash formfruta || true
 sudo mkdir -p /opt/form-fruta-comercial
 sudo chown -R formfruta:formfruta /opt/form-fruta-comercial
 ```
 
-Clona el proyecto:
+Si SELinux esta activo:
+
+- valida los contextos despues de copiar archivos
+- no lo deshabilites como primer recurso
+
+## 2. Copiar proyecto y secretos
+
+Clona el repo con el usuario de servicio:
 
 ```bash
-sudo -u formfruta git clone <URL_GIT> /opt/form-fruta-comercial
-cd /opt/form-fruta-comercial
+sudo -u formfruta git clone <URL_DEL_REPO> /opt/form-fruta-comercial
 ```
 
-## 4. Crear `.venv` Linux e instalar dependencias
+Si el repo ya existe:
 
 ```bash
-sudo -u formfruta python3.11 -m venv /opt/form-fruta-comercial/.venv
-sudo -u formfruta /opt/form-fruta-comercial/.venv/bin/pip install --upgrade pip wheel
-sudo -u formfruta /opt/form-fruta-comercial/.venv/bin/pip install -r /opt/form-fruta-comercial/requirements.txt
+sudo -u formfruta git -C /opt/form-fruta-comercial fetch --all
+sudo -u formfruta git -C /opt/form-fruta-comercial checkout feature/mvp-streamlit
+sudo -u formfruta git -C /opt/form-fruta-comercial pull --ff-only origin feature/mvp-streamlit
 ```
 
-Nota:
+Crea las carpetas que usa el contenedor:
 
-- `requirements.txt` ya incluye solo dependencias runtime del proyecto.
-- `SQLAlchemy` y `pyodbc` son obligatorios para este package.
+```bash
+sudo -u formfruta mkdir -p /opt/form-fruta-comercial/.streamlit
+sudo -u formfruta mkdir -p /opt/form-fruta-comercial/data
+```
 
-## 5. Configurar secretos
+Importante:
 
-Coloca las credenciales solo del lado servidor en:
+- `data/` queda solo como ruta legacy para una migracion inicial.
+- la persistencia productiva real pasa al volumen Docker `formfruta_data`
+- el contenido actual de `/opt/form-fruta-comercial/data` se migra automaticamente la primera vez que ejecutes `deploy/deploy_prod.sh`
+
+Copia los secretos reales del ambiente a:
 
 ```text
 /opt/form-fruta-comercial/.streamlit/secrets.toml
 ```
 
-Permisos recomendados:
+Usa [`../.streamlit/secrets.example.toml`](../.streamlit/secrets.example.toml) como referencia de estructura.
+
+Verifica permisos:
 
 ```bash
-sudo chown formfruta:formfruta /opt/form-fruta-comercial/.streamlit/secrets.toml
-sudo chmod 600 /opt/form-fruta-comercial/.streamlit/secrets.toml
+sudo chown -R formfruta:formfruta /opt/form-fruta-comercial
 sudo chmod 700 /opt/form-fruta-comercial/.streamlit
+sudo chmod 600 /opt/form-fruta-comercial/.streamlit/secrets.toml
 ```
 
-## 6. Smoke test antes de publicar
+Antes del primer arranque, revisa tambien `config/operacion.toml` con los destinatarios y pantallas reales de produccion.
 
-Prueba runtime local:
+## 3. Validar prerequisitos de red
+
+Antes del primer `docker compose up`, confirma:
+
+- salida HTTPS a `packages.microsoft.com`
+- salida a Azure SQL productivo
+- salida al SMTP productivo, si ya existe
+- allowlist de la IP o NAT del host Linux en Azure SQL
+
+Si SMTP todavia no esta disponible:
+
+- continua con el despliegue de la app
+- no habilites `formfruta-email.service` ni `formfruta-email.timer`
+
+## 4. Primer arranque manual en el servidor
+
+El despliegue productivo usa [../compose.prod.yml](../compose.prod.yml), que:
+
+- construye desde [../Dockerfile](../Dockerfile)
+- monta `config/operacion.toml`, `.streamlit/secrets.toml` y el volumen persistente `formfruta_data`
+- publica `8502`, porque `8501` y `8503` ya estan ocupados en el servidor
+- define `FORM_FRUTA_SOURCE_SYSTEM=form_fruta_comercial_prod_ol9`
+- evita que un `git pull` toque la data persistente de la app
+
+Build inicial:
 
 ```bash
 cd /opt/form-fruta-comercial
-sudo -u formfruta /opt/form-fruta-comercial/.venv/bin/python scripts/smoke_test_runtime.py --sp-checks
+sudo -u formfruta docker compose -f compose.prod.yml build app
 ```
 
-Que valida:
+Levanta el contenedor:
 
-- Python del `.venv`
-- `pyodbc`
-- presencia de `ODBC Driver 18 for SQL Server`
-- conexion `SELECT 1` a Azure SQL
-- lectura de catalogos via stored procedures
-- inicializacion del store local
+```bash
+sudo -u formfruta docker compose -f compose.prod.yml up -d app
+```
 
-## 7. Publicacion recomendada
+Revisa estado y logs:
 
-Recomendacion:
+```bash
+sudo -u formfruta docker compose -f compose.prod.yml ps
+sudo -u formfruta docker compose -f compose.prod.yml logs --tail=200 app
+```
 
-- Streamlit escuchando en `127.0.0.1:8501`
-- `nginx` publicando la URL interna corporativa por HTTPS
+Valida el health endpoint:
 
-Archivos de ejemplo incluidos:
+```bash
+curl -fsS http://127.0.0.1:8502/_stcore/health
+```
 
-- [formfruta.service.example](C:/DEV/FormFrutaComercial/deploy/formfruta.service.example)
-- [nginx-formfruta.conf.example](C:/DEV/FormFrutaComercial/deploy/nginx-formfruta.conf.example)
+Ejecuta los smoke tests dentro del contenedor:
 
-## 8. Activar systemd
+```bash
+sudo -u formfruta docker compose -f compose.prod.yml exec -T app python scripts/smoke_test_runtime.py --skip-db
+sudo -u formfruta docker compose -f compose.prod.yml exec -T app python scripts/smoke_test_runtime.py
+sudo -u formfruta docker compose -f compose.prod.yml exec -T app python scripts/smoke_test_runtime.py --sp-checks
+```
+
+Criterio de salida:
+
+- los tres comandos deben terminar en `SMOKE TEST OK`
+
+## 5. Publicacion de la app
+
+La publicacion base del proyecto queda directa en `8502`, sin `nginx`, porque:
+
+- `8501` ya esta ocupado por `monitorproduccion`
+- `8503` ya esta ocupado por `formfrutaprocesada`
+- la URL actual de esta app es `http://192.168.200.74:8502/`
+
+Pruebas desde el host:
+
+```bash
+curl -I http://127.0.0.1:8502/
+curl -I http://192.168.200.74:8502/
+```
+
+Pruebas desde cliente:
+
+```text
+http://192.168.200.74:8502/
+```
+
+`nginx` queda opcional. Si mas adelante decides volver a poner reverse proxy, el ejemplo base esta en [../deploy/nginx-formfruta.conf.example](../deploy/nginx-formfruta.conf.example) y debe apuntar a `127.0.0.1:8502`.
+
+## 6. Configurar systemd
 
 ```bash
 sudo cp /opt/form-fruta-comercial/deploy/formfruta.service.example /etc/systemd/system/formfruta.service
 sudo systemctl daemon-reload
 sudo systemctl enable --now formfruta.service
-sudo systemctl status formfruta.service
+sudo systemctl status formfruta.service --no-pager
 ```
 
-Logs:
+Revisa logs:
 
 ```bash
-sudo journalctl -u formfruta.service -f
+journalctl -u formfruta.service -n 100 --no-pager
 ```
 
-## 9. Activar nginx
+El servicio debe quedar alineado con [../deploy/formfruta.service.example](../deploy/formfruta.service.example), que ejecuta:
+
+- `docker compose up -d --build app`
+- `docker compose stop app`
+
+## 7. Validacion funcional post-despliegue
+
+Desde el host:
 
 ```bash
-sudo cp /opt/form-fruta-comercial/deploy/nginx-formfruta.conf.example /etc/nginx/conf.d/formfruta.conf
-sudo nginx -t
-sudo systemctl enable --now nginx
-sudo systemctl reload nginx
+curl -fsS http://127.0.0.1:8502/_stcore/health
+curl -I http://127.0.0.1:8502/
 ```
 
-## 10. Hardening minimo
+Desde una estacion cliente dentro de la red:
 
-- No exponer Streamlit directo a internet.
-- Mantener `server.address=127.0.0.1` si usas `nginx`.
-- Publicar solo via URL corporativa interna.
-- Restringir `nginx` por subred.
-- Ejecutar el servicio con usuario no root.
-- Mantener permisos cerrados en `data/` y `.streamlit/secrets.toml`.
+```text
+http://192.168.200.74:8502/
+```
 
-## 11. Smoke test de aplicacion
+Valida:
 
-Valida el arranque del package:
+- carga de la app
+- acceso a `Formulario`
+- acceso a `Estatus Operacion`
+- acceso a `Manual de Usuario`
+- apertura de una pantalla con `?screen_id=<id>`
+
+Durante esa prueba, revisa logs del contenedor:
+
+```bash
+sudo -u formfruta docker compose -f /opt/form-fruta-comercial/compose.prod.yml logs --tail=200 app
+```
+
+## 8. Correo: dejar pendiente hasta tener SMTP
+
+No habilites estos artefactos hasta tener credenciales reales:
+
+- [../deploy/formfruta-email.service.example](../deploy/formfruta-email.service.example)
+- [../deploy/formfruta-email.timer.example](../deploy/formfruta-email.timer.example)
+
+Cuando el SMTP productivo exista, valida primero:
+
+```bash
+sudo -u formfruta docker compose -f /opt/form-fruta-comercial/compose.prod.yml exec -T app python scripts/send_operacion_status_email.py --dry-run --force-digest --skip-alerts
+sudo -u formfruta docker compose -f /opt/form-fruta-comercial/compose.prod.yml exec -T app python scripts/send_operacion_status_email.py --force-digest --skip-alerts
+```
+
+Si ambas pruebas pasan, instala y habilita el timer:
+
+```bash
+sudo cp /opt/form-fruta-comercial/deploy/formfruta-email.service.example /etc/systemd/system/formfruta-email.service
+sudo cp /opt/form-fruta-comercial/deploy/formfruta-email.timer.example /etc/systemd/system/formfruta-email.timer
+sudo systemctl daemon-reload
+sudo systemctl enable --now formfruta-email.timer
+sudo systemctl status formfruta-email.timer --no-pager
+```
+
+## 9. Redeploy operativo
+
+El flujo de redeploy queda encapsulado en [../deploy/deploy_prod.sh](../deploy/deploy_prod.sh):
 
 ```bash
 cd /opt/form-fruta-comercial
-sudo -u formfruta /opt/form-fruta-comercial/.venv/bin/python -m streamlit run streamlit_app.py --server.headless=true --server.address=127.0.0.1 --server.port=8501
+bash deploy/deploy_prod.sh /opt/form-fruta-comercial
 ```
 
-Luego abre la URL interna publicada por `nginx`.
+Ese script hace:
 
-## 12. Troubleshooting rapido
+- `git fetch --all --prune`
+- `git checkout <branch>`
+- `git pull --ff-only origin <branch>`
+- migracion unica de `/opt/form-fruta-comercial/data` hacia `formfruta_data` si el volumen aun esta vacio
+- `docker compose -f compose.prod.yml build app`
+- `docker compose -f compose.prod.yml up -d app`
+- validacion del health endpoint local
+- `nginx -t` y recarga
+- reinicio del timer de correo si ya existe
 
-Si `pip install -r requirements.txt` falla:
+Si vas a publicar `feature/mvp-streamlit`, el primer despliegue manual y el workflow deben usar esa misma branch.
 
-- Asegura que el repo del server tenga la ultima version del archivo. Una copia antigua podia incluir paquetes del entorno local y fijaciones invalidas como `cachetools==7.0.5`.
-- Recomendacion: recrea el `.venv` Linux y vuelve a instalar con el `requirements.txt` actual.
+## 10. Criterios de aceptacion
 
-Si ves `streamlit: command not found`:
+El despliegue queda aceptado cuando:
 
-- Normalmente significa que la instalacion de dependencias aborto antes de completar.
-- Usa siempre el arranque mas robusto:
+- `docker compose ps` muestra `app` en `healthy`
+- `curl http://127.0.0.1:8502/_stcore/health` responde OK
+- `smoke_test_runtime.py --skip-db` termina OK
+- `smoke_test_runtime.py` termina OK
+- `smoke_test_runtime.py --sp-checks` termina OK y devuelve catalogos
+- la aplicacion responde por `http://192.168.200.74:8502/`
+- `formfruta.service` queda habilitado y estable tras reinicio del host
+- el correo queda deshabilitado hasta disponer de SMTP real
 
-```bash
-/opt/form-fruta-comercial/.venv/bin/python -m streamlit run streamlit_app.py --server.headless=true --server.address=127.0.0.1 --server.port=8501
-```
+## Troubleshooting rapido
 
-## 13. Referencias oficiales
+Si el build falla al instalar Docker o dependencias:
 
-- Microsoft Learn, instalacion de ODBC Driver 18 para RHEL/Oracle Linux:
-  https://learn.microsoft.com/sql/connect/odbc/linux-mac/installing-the-microsoft-odbc-driver-for-sql-server
-- Streamlit config.toml:
-  https://docs.streamlit.io/develop/api-reference/configuration/config.toml
+- verifica salida a internet y resolucion DNS del host
+- confirma que `docker compose version` responda
+
+Si el contenedor no llega a `healthy`:
+
+- revisa `docker compose logs --tail=200 app`
+- verifica que `.streamlit/secrets.toml` este presente y legible
+- confirma que `config/operacion.toml` exista en el host
+
+Si falla Azure SQL:
+
+- valida el allowlist de la IP/NAT del host Linux
+- reejecuta `python scripts/smoke_test_runtime.py --sp-checks`
+
+Si falla el reverse proxy:
+
+- valida `nginx -t`
+- confirma que el contenedor responda en `127.0.0.1:8502`
+- confirma que el proxy apunte a `127.0.0.1:8502`
+
+## Referencias
+
+- Docker Compose productivo: [../compose.prod.yml](../compose.prod.yml)
+- Dockerfile del runtime: [../Dockerfile](../Dockerfile)
+- Secretos por ambiente: [../.streamlit/secrets.example.toml](../.streamlit/secrets.example.toml)
+- Servicio systemd: [../deploy/formfruta.service.example](../deploy/formfruta.service.example)
+- Reverse proxy: [../deploy/nginx-formfruta.conf.example](../deploy/nginx-formfruta.conf.example)

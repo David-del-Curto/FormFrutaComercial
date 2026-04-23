@@ -341,7 +341,7 @@ def _build_semaforo_chart(porc_fbc: float):
         .encode(
             x=alt.X(
                 "inicio:Q",
-                title="% FBC (ultima hora)",
+                title="% FBC Absoluto (ultima hora)",
                 scale=alt.Scale(domain=[0, max_domain]),
             ),
             x2="fin:Q",
@@ -368,7 +368,7 @@ def _build_semaforo_chart(porc_fbc: float):
         .encode(
             x=alt.X("valor:Q", scale=alt.Scale(domain=[0, max_domain])),
             y=alt.Y("fila:N", axis=None),
-            tooltip=[alt.Tooltip("valor_label:N", title="% FBC actual")],
+            tooltip=[alt.Tooltip("valor_label:N", title="% FBC Absoluto actual")],
         )
     )
 
@@ -449,7 +449,7 @@ def render_como_vamos(
     col1, col2, col3, col4, col5 = st.columns(5)
     col1.metric("% Exportable", _format_percent_latam(kpis["porc_exportable"], 1))
     col2.metric("% Comercial Kg", _format_percent_latam(kpis["porc_comercial_kilos"], 1))
-    col3.metric("% Sana", _format_percent_latam(kpis["porc_sana"], 1))
+    col3.metric("% Sana FBC muestra", _format_percent_latam(kpis["porc_sana"], 1))
     col4.metric("% Choice", _format_percent_latam(kpis["porc_choice"], 1))
     col5.metric("% Descartable", _format_percent_latam(kpis["porc_descartable"], 1))
 
@@ -754,10 +754,10 @@ def render_como_vamos(
         "campos_pendientes": "Pendientes",
         "porc_exportable": "% Exportable",
         "porc_comercial_kilos": "% Comercial Kg",
-        "porc_sana": "% Sana",
+        "porc_sana": "% Sana FBC muestra",
         "porc_choice": "% Choice",
         "porc_descartable": "% Descartable",
-        "porc_fbc": "% FBC",
+        "porc_fbc": "% FBC Absoluto",
     })
     detalle_df["ID"] = detalle_df["ID"].apply(lambda x: _format_number_latam(x, 0))
     detalle_df["Muestra"] = detalle_df["Muestra"].apply(lambda x: _format_number_latam(x, 0))
@@ -767,10 +767,10 @@ def render_como_vamos(
     for porcentaje_col in [
         "% Exportable",
         "% Comercial Kg",
-        "% Sana",
+        "% Sana FBC muestra",
         "% Choice",
         "% Descartable",
-        "% FBC",
+        "% FBC Absoluto",
     ]:
         detalle_df[porcentaje_col] = detalle_df[porcentaje_col].apply(
             lambda x: _format_percent_latam(x, 1)
