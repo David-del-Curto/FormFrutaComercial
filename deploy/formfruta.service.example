@@ -9,10 +9,10 @@ Type=oneshot
 RemainAfterExit=yes
 User=formfruta
 Group=formfruta
-WorkingDirectory=/home/soporte/FromFrutaComercial
+WorkingDirectory=/home/soporte/FormFrutaComecial
 Environment=COMPOSE_PROJECT_NAME=formfruta
-ExecStart=/usr/bin/docker compose -f /home/soporte/FromFrutaComercial/compose.prod.yml up -d --build app
-ExecStop=/usr/bin/docker compose -f /home/soporte/FromFrutaComercial/compose.prod.yml stop app
+ExecStart=/usr/bin/docker compose -f /home/soporte/FormFrutaComecial/compose.prod.yml up -d --build app
+ExecStop=/usr/bin/docker compose -f /home/soporte/FormFrutaComecial/compose.prod.yml stop app
 TimeoutStartSec=0
 TimeoutStopSec=60
 

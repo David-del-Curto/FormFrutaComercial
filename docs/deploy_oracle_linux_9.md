@@ -37,7 +37,7 @@ SMOKE TEST OK
 Antes de tocar el servidor, deja definidos estos valores:
 
 ```text
-APP_DIR=/home/soporte/FromFrutaComercial
+APP_DIR=/home/soporte/FormFrutaComecial
 APP_USER=formfruta
 APP_GROUP=formfruta
 PUBLIC_HOST=192.168.200.74
@@ -81,9 +81,9 @@ docker compose version
 Crea usuario y carpeta operativa:
 
 ```bash
-sudo useradd --system --create-home --home-dir /home/soporte/FromFrutaComercial --shell /bin/bash formfruta || true
-sudo mkdir -p /home/soporte/FromFrutaComercial
-sudo chown -R formfruta:formfruta /home/soporte/FromFrutaComercial
+sudo useradd --system --create-home --home-dir /home/soporte/FormFrutaComecial --shell /bin/bash formfruta || true
+sudo mkdir -p /home/soporte/FormFrutaComecial
+sudo chown -R formfruta:formfruta /home/soporte/FormFrutaComecial
 ```
 
 Si SELinux esta activo:
@@ -96,34 +96,34 @@ Si SELinux esta activo:
 Clona el repo con el usuario de servicio:
 
 ```bash
-sudo -u formfruta git clone <URL_DEL_REPO> /home/soporte/FromFrutaComercial
+sudo -u formfruta git clone <URL_DEL_REPO> /home/soporte/FormFrutaComecial
 ```
 
 Si el repo ya existe:
 
 ```bash
-sudo -u formfruta git -C /home/soporte/FromFrutaComercial fetch --all
-sudo -u formfruta git -C /home/soporte/FromFrutaComercial checkout feature/mvp-streamlit
-sudo -u formfruta git -C /home/soporte/FromFrutaComercial pull --ff-only origin feature/mvp-streamlit
+sudo -u formfruta git -C /home/soporte/FormFrutaComecial fetch --all
+sudo -u formfruta git -C /home/soporte/FormFrutaComecial checkout feature/mvp-streamlit
+sudo -u formfruta git -C /home/soporte/FormFrutaComecial pull --ff-only origin feature/mvp-streamlit
 ```
 
 Crea las carpetas que usa el contenedor:
 
 ```bash
-sudo -u formfruta mkdir -p /home/soporte/FromFrutaComercial/.streamlit
-sudo -u formfruta mkdir -p /home/soporte/FromFrutaComercial/data
+sudo -u formfruta mkdir -p /home/soporte/FormFrutaComecial/.streamlit
+sudo -u formfruta mkdir -p /home/soporte/FormFrutaComecial/data
 ```
 
 Importante:
 
 - `data/` queda solo como ruta legacy para una migracion inicial.
 - la persistencia productiva real pasa al volumen Docker `formfruta_data`
-- el contenido actual de `/home/soporte/FromFrutaComercial/data` se migra automaticamente la primera vez que ejecutes `deploy/deploy_prod.sh`
+- el contenido actual de `/home/soporte/FormFrutaComecial/data` se migra automaticamente la primera vez que ejecutes `deploy/deploy_prod.sh`
 
 Copia los secretos reales del ambiente a:
 
 ```text
-/home/soporte/FromFrutaComercial/.streamlit/secrets.toml
+/home/soporte/FormFrutaComecial/.streamlit/secrets.toml
 ```
 
 Usa [`../.streamlit/secrets.example.toml`](../.streamlit/secrets.example.toml) como referencia de estructura.
@@ -131,9 +131,9 @@ Usa [`../.streamlit/secrets.example.toml`](../.streamlit/secrets.example.toml) c
 Verifica permisos:
 
 ```bash
-sudo chown -R formfruta:formfruta /home/soporte/FromFrutaComercial
-sudo chmod 700 /home/soporte/FromFrutaComercial/.streamlit
-sudo chmod 600 /home/soporte/FromFrutaComercial/.streamlit/secrets.toml
+sudo chown -R formfruta:formfruta /home/soporte/FormFrutaComecial
+sudo chmod 700 /home/soporte/FormFrutaComecial/.streamlit
+sudo chmod 600 /home/soporte/FormFrutaComecial/.streamlit/secrets.toml
 ```
 
 Antes del primer arranque, revisa tambien `config/operacion.toml` con los destinatarios y pantallas reales de produccion.
@@ -165,7 +165,7 @@ El despliegue productivo usa [../compose.prod.yml](../compose.prod.yml), que:
 Build inicial:
 
 ```bash
-cd /home/soporte/FromFrutaComercial
+cd /home/soporte/FormFrutaComecial
 sudo -u formfruta docker compose -f compose.prod.yml build app
 ```
 
@@ -226,7 +226,7 @@ http://192.168.200.74:8502/
 ## 6. Configurar systemd
 
 ```bash
-sudo cp /home/soporte/FromFrutaComercial/deploy/formfruta.service.example /etc/systemd/system/formfruta.service
+sudo cp /home/soporte/FormFrutaComecial/deploy/formfruta.service.example /etc/systemd/system/formfruta.service
 sudo systemctl daemon-reload
 sudo systemctl enable --now formfruta.service
 sudo systemctl status formfruta.service --no-pager
@@ -269,7 +269,7 @@ Valida:
 Durante esa prueba, revisa logs del contenedor:
 
 ```bash
-sudo -u formfruta docker compose -f /home/soporte/FromFrutaComercial/compose.prod.yml logs --tail=200 app
+sudo -u formfruta docker compose -f /home/soporte/FormFrutaComecial/compose.prod.yml logs --tail=200 app
 ```
 
 ## 8. Correo: dejar pendiente hasta tener SMTP
@@ -282,15 +282,15 @@ No habilites estos artefactos hasta tener credenciales reales:
 Cuando el SMTP productivo exista, valida primero:
 
 ```bash
-sudo -u formfruta docker compose -f /home/soporte/FromFrutaComercial/compose.prod.yml exec -T app python scripts/send_operacion_status_email.py --dry-run --force-digest --skip-alerts
-sudo -u formfruta docker compose -f /home/soporte/FromFrutaComercial/compose.prod.yml exec -T app python scripts/send_operacion_status_email.py --force-digest --skip-alerts
+sudo -u formfruta docker compose -f /home/soporte/FormFrutaComecial/compose.prod.yml exec -T app python scripts/send_operacion_status_email.py --dry-run --force-digest --skip-alerts
+sudo -u formfruta docker compose -f /home/soporte/FormFrutaComecial/compose.prod.yml exec -T app python scripts/send_operacion_status_email.py --force-digest --skip-alerts
 ```
 
 Si ambas pruebas pasan, instala y habilita el timer:
 
 ```bash
-sudo cp /home/soporte/FromFrutaComercial/deploy/formfruta-email.service.example /etc/systemd/system/formfruta-email.service
-sudo cp /home/soporte/FromFrutaComercial/deploy/formfruta-email.timer.example /etc/systemd/system/formfruta-email.timer
+sudo cp /home/soporte/FormFrutaComecial/deploy/formfruta-email.service.example /etc/systemd/system/formfruta-email.service
+sudo cp /home/soporte/FormFrutaComecial/deploy/formfruta-email.timer.example /etc/systemd/system/formfruta-email.timer
 sudo systemctl daemon-reload
 sudo systemctl enable --now formfruta-email.timer
 sudo systemctl status formfruta-email.timer --no-pager
@@ -301,8 +301,8 @@ sudo systemctl status formfruta-email.timer --no-pager
 El flujo de redeploy queda encapsulado en [../deploy/deploy_prod.sh](../deploy/deploy_prod.sh):
 
 ```bash
-cd /home/soporte/FromFrutaComercial
-bash deploy/deploy_prod.sh /home/soporte/FromFrutaComercial
+cd /home/soporte/FormFrutaComecial
+bash deploy/deploy_prod.sh /home/soporte/FormFrutaComecial
 ```
 
 Ese script hace:
@@ -310,7 +310,7 @@ Ese script hace:
 - `git fetch --all --prune`
 - `git checkout <branch>`
 - `git pull --ff-only origin <branch>`
-- migracion unica de `/home/soporte/FromFrutaComercial/data` hacia `formfruta_data` si el volumen aun esta vacio
+- migracion unica de `/home/soporte/FormFrutaComecial/data` hacia `formfruta_data` si el volumen aun esta vacio
 - `docker compose -f compose.prod.yml build app`
 - `docker compose -f compose.prod.yml up -d app`
 - validacion del health endpoint local
