@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_DIR="${1:-/opt/form-fruta-comercial}"
+APP_DIR="${1:-/home/soporte/FromFrutaComercial}"
 DEPLOY_BRANCH="${2:-main}"
 DATA_VOLUME="${FORMFRUTA_DATA_VOLUME:-formfruta_data}"
 LEGACY_DATA_DIR="${FORMFRUTA_LEGACY_DATA_DIR:-$APP_DIR/data}"

@@ -7,6 +7,6 @@ Requires=formfruta.service
 Type=oneshot
 User=formfruta
 Group=formfruta
-WorkingDirectory=/opt/form-fruta-comercial
+WorkingDirectory=/home/soporte/FromFrutaComercial
 Environment=COMPOSE_PROJECT_NAME=formfruta
-ExecStart=/usr/bin/docker compose -f /opt/form-fruta-comercial/compose.prod.yml exec -T app python scripts/send_operacion_status_email.py
+ExecStart=/usr/bin/docker compose -f /home/soporte/FromFrutaComercial/compose.prod.yml exec -T app python scripts/send_operacion_status_email.py
