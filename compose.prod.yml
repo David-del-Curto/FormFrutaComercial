@@ -37,4 +37,5 @@ services:
 
 volumes:
   formfruta_data:
+    external: true
     name: formfruta_data
