@@ -34,6 +34,26 @@ migrate_legacy_data() {
         busybox sh -c 'cp -a /src/. /dest/'
 }
 
+wait_for_app_health() {
+    local health_url="http://127.0.0.1:8502/_stcore/health"
+    local attempts="${FORMFRUTA_HEALTH_ATTEMPTS:-30}"
+    local delay_seconds="${FORMFRUTA_HEALTH_DELAY_SECONDS:-2}"
+
+    for attempt in $(seq 1 "$attempts"); do
+        if curl -fsS "$health_url" >/dev/null; then
+            return 0
+        fi
+
+        echo "Esperando healthcheck Streamlit ($attempt/$attempts)"
+        sleep "$delay_seconds"
+    done
+
+    echo "La app no respondio healthcheck despues de $attempts intentos"
+    docker compose -f compose.prod.yml ps || true
+    docker compose -f compose.prod.yml logs --tail=120 app || true
+    return 1
+}
+
 # Preservar secrets locales antes del pull (no están en git desde chore/destrackear)
 _secrets_backup=""
 _legacy_data_backup=""
@@ -79,7 +99,7 @@ migrate_legacy_data
 docker compose -f compose.prod.yml build app
 docker compose -f compose.prod.yml up -d app
 
-curl -fsS http://127.0.0.1:8502/_stcore/health >/dev/null
+wait_for_app_health
 
 if command -v nginx >/dev/null 2>&1 && systemctl is-enabled nginx >/dev/null 2>&1; then
     sudo nginx -t
