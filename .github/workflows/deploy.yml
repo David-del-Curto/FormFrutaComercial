@@ -6,14 +6,21 @@ on:
       - main
       - feature/mvp-streamlit
   workflow_dispatch:
+    inputs:
+      deploy_branch:
+        description: Branch to validate and deploy
+        required: false
+        default: feature/mvp-streamlit
 
 jobs:
-  validate-and-deploy:
+  validate:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.deploy_branch || github.ref }}
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -48,21 +55,16 @@ jobs:
       - name: Build Docker image
         run: docker build -t form-fruta-comercial:ci .
 
-      - name: Configure SSH
-        env:
-          PROD_SSH_HOST: ${{ secrets.PROD_SSH_HOST }}
-          PROD_SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
-        run: |
-          install -m 700 -d ~/.ssh
-          printf '%s\n' "$PROD_SSH_KEY" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H "$PROD_SSH_HOST" >> ~/.ssh/known_hosts
+  deploy:
+    needs: validate
+    if: github.event_name == 'workflow_dispatch' || github.ref_name == 'feature/mvp-streamlit'
+    runs-on: [self-hosted, linux, x64, formfruta-ol9]
+    env:
+      PROD_APP_DIR: ${{ vars.PROD_APP_DIR || '/home/soporte/FormFrutaComercial' }}
+      DEPLOY_BRANCH: ${{ github.event_name == 'workflow_dispatch' && inputs.deploy_branch || 'feature/mvp-streamlit' }}
 
+    steps:
       - name: Deploy to production
-        env:
-          DEPLOY_BRANCH: ${{ github.ref_name }}
-          PROD_SSH_HOST: ${{ secrets.PROD_SSH_HOST }}
-          PROD_SSH_USER: ${{ secrets.PROD_SSH_USER }}
-          PROD_APP_DIR: ${{ secrets.PROD_APP_DIR }}
         run: |
-          ssh "$PROD_SSH_USER@$PROD_SSH_HOST" "bash -lc 'cd \"$PROD_APP_DIR\" && bash deploy/deploy_prod.sh \"$PROD_APP_DIR\" \"$DEPLOY_BRANCH\"'"
+          cd "$PROD_APP_DIR"
+          bash deploy/deploy_prod.sh "$PROD_APP_DIR" "$DEPLOY_BRANCH"

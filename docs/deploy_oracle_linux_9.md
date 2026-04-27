@@ -9,7 +9,8 @@ Esta guia deja el proyecto listo para despliegue en Oracle Linux 9 / RHEL usando
 - `compose.local.yml` solo para pruebas locales
 - Streamlit publicado en `0.0.0.0:8502`
 - acceso operativo directo por `http://192.168.200.74:8502/`
-- `systemd` para arranque y redeploy
+- artefactos `systemd` preparados para una fase posterior
+- CI/CD con GitHub Actions self-hosted runner dentro del servidor/LAN
 - smoke tests del runtime, Azure SQL y consultas operativas
 
 ## Estado validado antes del server
@@ -37,9 +38,9 @@ SMOKE TEST OK
 Antes de tocar el servidor, deja definidos estos valores:
 
 ```text
-APP_DIR=/home/soporte/FormFrutaComecial
-APP_USER=formfruta
-APP_GROUP=formfruta
+APP_DIR=/home/soporte/FormFrutaComercial
+APP_USER=soporte
+APP_GROUP=soporte
 PUBLIC_HOST=192.168.200.74
 PUBLIC_URL=http://192.168.200.74:8502/
 STREAMLIT_BIND=0.0.0.0:8502
@@ -78,12 +79,16 @@ sudo systemctl status docker --no-pager
 docker compose version
 ```
 
-Crea usuario y carpeta operativa:
+Para esta primera pasada opera directamente con el usuario `soporte`, que ya posee el repo y los secretos productivos. Verifica:
 
 ```bash
-sudo useradd --system --create-home --home-dir /home/soporte/FormFrutaComecial --shell /bin/bash formfruta || true
-sudo mkdir -p /home/soporte/FormFrutaComecial
-sudo chown -R formfruta:formfruta /home/soporte/FormFrutaComecial
+whoami
+pwd
+ls -ld /home/soporte/FormFrutaComercial
+ls -l /home/soporte/FormFrutaComercial/.streamlit/secrets.toml
+ls -l /home/soporte/FormFrutaComercial/config/operacion.toml
+docker ps
+docker compose version
 ```
 
 Si SELinux esta activo:
@@ -91,39 +96,45 @@ Si SELinux esta activo:
 - valida los contextos despues de copiar archivos
 - no lo deshabilites como primer recurso
 
-## 2. Copiar proyecto y secretos
+## 2. Preparar proyecto y secretos
 
-Clona el repo con el usuario de servicio:
+Esta guia asume que el repo ya existe en:
+
+```text
+/home/soporte/FormFrutaComercial
+```
+
+Si necesitas clonarlo por primera vez:
 
 ```bash
-sudo -u formfruta git clone <URL_DEL_REPO> /home/soporte/FormFrutaComecial
+git clone <URL_DEL_REPO> /home/soporte/FormFrutaComercial
 ```
 
 Si el repo ya existe:
 
 ```bash
-sudo -u formfruta git -C /home/soporte/FormFrutaComecial fetch --all
-sudo -u formfruta git -C /home/soporte/FormFrutaComecial checkout feature/mvp-streamlit
-sudo -u formfruta git -C /home/soporte/FormFrutaComecial pull --ff-only origin feature/mvp-streamlit
+git -C /home/soporte/FormFrutaComercial fetch --all --prune
+git -C /home/soporte/FormFrutaComercial checkout feature/mvp-streamlit
+git -C /home/soporte/FormFrutaComercial pull --ff-only origin feature/mvp-streamlit
 ```
 
 Crea las carpetas que usa el contenedor:
 
 ```bash
-sudo -u formfruta mkdir -p /home/soporte/FormFrutaComecial/.streamlit
-sudo -u formfruta mkdir -p /home/soporte/FormFrutaComecial/data
+mkdir -p /home/soporte/FormFrutaComercial/.streamlit
+mkdir -p /home/soporte/FormFrutaComercial/data
 ```
 
 Importante:
 
 - `data/` queda solo como ruta legacy para una migracion inicial.
 - la persistencia productiva real pasa al volumen Docker `formfruta_data`
-- el contenido actual de `/home/soporte/FormFrutaComecial/data` se migra automaticamente la primera vez que ejecutes `deploy/deploy_prod.sh`
+- el contenido actual de `/home/soporte/FormFrutaComercial/data` se migra automaticamente la primera vez que ejecutes `deploy/deploy_prod.sh`
 
 Copia los secretos reales del ambiente a:
 
 ```text
-/home/soporte/FormFrutaComecial/.streamlit/secrets.toml
+/home/soporte/FormFrutaComercial/.streamlit/secrets.toml
 ```
 
 Usa [`../.streamlit/secrets.example.toml`](../.streamlit/secrets.example.toml) como referencia de estructura.
@@ -131,9 +142,9 @@ Usa [`../.streamlit/secrets.example.toml`](../.streamlit/secrets.example.toml) c
 Verifica permisos:
 
 ```bash
-sudo chown -R formfruta:formfruta /home/soporte/FormFrutaComecial
-sudo chmod 700 /home/soporte/FormFrutaComecial/.streamlit
-sudo chmod 600 /home/soporte/FormFrutaComecial/.streamlit/secrets.toml
+chown -R soporte:soporte /home/soporte/FormFrutaComercial
+chmod 700 /home/soporte/FormFrutaComercial/.streamlit
+chmod 600 /home/soporte/FormFrutaComercial/.streamlit/secrets.toml
 ```
 
 Antes del primer arranque, revisa tambien `config/operacion.toml` con los destinatarios y pantallas reales de produccion.
@@ -145,7 +156,8 @@ Antes del primer `docker compose up`, confirma:
 - salida HTTPS a `packages.microsoft.com`
 - salida a Azure SQL productivo
 - salida al SMTP productivo, si ya existe
-- allowlist de la IP o NAT del host Linux en Azure SQL
+- IP publica actual del host Linux
+- allowlist de esa IP o NAT en Azure SQL
 
 Si SMTP todavia no esta disponible:
 
@@ -162,24 +174,21 @@ El despliegue productivo usa [../compose.prod.yml](../compose.prod.yml), que:
 - define `FORM_FRUTA_SOURCE_SYSTEM=form_fruta_comercial_prod_ol9`
 - evita que un `git pull` toque la data persistente de la app
 
-Build inicial:
+Actualiza la branch y ejecuta el deploy manual:
 
 ```bash
-cd /home/soporte/FormFrutaComecial
-sudo -u formfruta docker compose -f compose.prod.yml build app
-```
-
-Levanta el contenedor:
-
-```bash
-sudo -u formfruta docker compose -f compose.prod.yml up -d app
+cd /home/soporte/FormFrutaComercial
+git fetch --all --prune
+git checkout feature/mvp-streamlit
+git pull --ff-only origin feature/mvp-streamlit
+bash deploy/deploy_prod.sh /home/soporte/FormFrutaComercial feature/mvp-streamlit
 ```
 
 Revisa estado y logs:
 
 ```bash
-sudo -u formfruta docker compose -f compose.prod.yml ps
-sudo -u formfruta docker compose -f compose.prod.yml logs --tail=200 app
+docker compose -f compose.prod.yml ps
+docker compose -f compose.prod.yml logs --tail=200 app
 ```
 
 Valida el health endpoint:
@@ -191,9 +200,9 @@ curl -fsS http://127.0.0.1:8502/_stcore/health
 Ejecuta los smoke tests dentro del contenedor:
 
 ```bash
-sudo -u formfruta docker compose -f compose.prod.yml exec -T app python scripts/smoke_test_runtime.py --skip-db
-sudo -u formfruta docker compose -f compose.prod.yml exec -T app python scripts/smoke_test_runtime.py
-sudo -u formfruta docker compose -f compose.prod.yml exec -T app python scripts/smoke_test_runtime.py --sp-checks
+docker compose -f compose.prod.yml exec -T app python scripts/smoke_test_runtime.py --skip-db
+docker compose -f compose.prod.yml exec -T app python scripts/smoke_test_runtime.py
+docker compose -f compose.prod.yml exec -T app python scripts/smoke_test_runtime.py --sp-checks
 ```
 
 Criterio de salida:
@@ -223,10 +232,19 @@ http://192.168.200.74:8502/
 
 `nginx` queda opcional. Si mas adelante decides volver a poner reverse proxy, el ejemplo base esta en [../deploy/nginx-formfruta.conf.example](../deploy/nginx-formfruta.conf.example) y debe apuntar a `127.0.0.1:8502`.
 
-## 6. Configurar systemd
+## 6. systemd: dejar para la segunda fase
+
+No instales ni habilites `formfruta.service` en esta pasada. El primer objetivo es dejar el despliegue manual estable y validar:
+
+- acceso Docker real desde `soporte`
+- conectividad a Azure SQL
+- salud del contenedor
+- persistencia en el volumen `formfruta_data`
+
+Cuando el despliegue manual ya este estable, usa estos artefactos como base:
 
 ```bash
-sudo cp /home/soporte/FormFrutaComecial/deploy/formfruta.service.example /etc/systemd/system/formfruta.service
+sudo cp /home/soporte/FormFrutaComercial/deploy/formfruta.service.example /etc/systemd/system/formfruta.service
 sudo systemctl daemon-reload
 sudo systemctl enable --now formfruta.service
 sudo systemctl status formfruta.service --no-pager
@@ -269,7 +287,7 @@ Valida:
 Durante esa prueba, revisa logs del contenedor:
 
 ```bash
-sudo -u formfruta docker compose -f /home/soporte/FormFrutaComecial/compose.prod.yml logs --tail=200 app
+docker compose -f /home/soporte/FormFrutaComercial/compose.prod.yml logs --tail=200 app
 ```
 
 ## 8. Correo: dejar pendiente hasta tener SMTP
@@ -282,15 +300,15 @@ No habilites estos artefactos hasta tener credenciales reales:
 Cuando el SMTP productivo exista, valida primero:
 
 ```bash
-sudo -u formfruta docker compose -f /home/soporte/FormFrutaComecial/compose.prod.yml exec -T app python scripts/send_operacion_status_email.py --dry-run --force-digest --skip-alerts
-sudo -u formfruta docker compose -f /home/soporte/FormFrutaComecial/compose.prod.yml exec -T app python scripts/send_operacion_status_email.py --force-digest --skip-alerts
+docker compose -f /home/soporte/FormFrutaComercial/compose.prod.yml exec -T app python scripts/send_operacion_status_email.py --dry-run --force-digest --skip-alerts
+docker compose -f /home/soporte/FormFrutaComercial/compose.prod.yml exec -T app python scripts/send_operacion_status_email.py --force-digest --skip-alerts
 ```
 
 Si ambas pruebas pasan, instala y habilita el timer:
 
 ```bash
-sudo cp /home/soporte/FormFrutaComecial/deploy/formfruta-email.service.example /etc/systemd/system/formfruta-email.service
-sudo cp /home/soporte/FormFrutaComecial/deploy/formfruta-email.timer.example /etc/systemd/system/formfruta-email.timer
+sudo cp /home/soporte/FormFrutaComercial/deploy/formfruta-email.service.example /etc/systemd/system/formfruta-email.service
+sudo cp /home/soporte/FormFrutaComercial/deploy/formfruta-email.timer.example /etc/systemd/system/formfruta-email.timer
 sudo systemctl daemon-reload
 sudo systemctl enable --now formfruta-email.timer
 sudo systemctl status formfruta-email.timer --no-pager
@@ -301,8 +319,8 @@ sudo systemctl status formfruta-email.timer --no-pager
 El flujo de redeploy queda encapsulado en [../deploy/deploy_prod.sh](../deploy/deploy_prod.sh):
 
 ```bash
-cd /home/soporte/FormFrutaComecial
-bash deploy/deploy_prod.sh /home/soporte/FormFrutaComecial
+cd /home/soporte/FormFrutaComercial
+bash deploy/deploy_prod.sh /home/soporte/FormFrutaComercial
 ```
 
 Ese script hace:
@@ -310,7 +328,7 @@ Ese script hace:
 - `git fetch --all --prune`
 - `git checkout <branch>`
 - `git pull --ff-only origin <branch>`
-- migracion unica de `/home/soporte/FormFrutaComecial/data` hacia `formfruta_data` si el volumen aun esta vacio
+- migracion unica de `/home/soporte/FormFrutaComercial/data` hacia `formfruta_data` si el volumen aun esta vacio
 - `docker compose -f compose.prod.yml build app`
 - `docker compose -f compose.prod.yml up -d app`
 - validacion del health endpoint local
@@ -319,7 +337,48 @@ Ese script hace:
 
 Si vas a publicar `feature/mvp-streamlit`, el primer despliegue manual y el workflow deben usar esa misma branch.
 
-## 10. Criterios de aceptacion
+## 10. CI/CD con GitHub Actions self-hosted runner
+
+El servidor publica la app por `192.168.200.74`, que es una IP privada. Por eso el despliegue automatico no debe depender de SSH desde `ubuntu-latest`; debe ejecutarse con un runner dentro del servidor o de la misma LAN.
+
+Instala un runner Linux x64 desde GitHub en `Settings > Actions > Runners > New self-hosted runner` y registralo con estas etiquetas:
+
+```text
+self-hosted
+linux
+x64
+formfruta-ol9
+```
+
+Ejecuta el runner como `soporte` y valida antes:
+
+```bash
+whoami
+id
+docker ps
+docker compose version
+test -d /home/soporte/FormFrutaComercial
+test -f /home/soporte/FormFrutaComercial/.streamlit/secrets.toml
+test -f /home/soporte/FormFrutaComercial/config/operacion.toml
+```
+
+Si `docker ps` falla por permisos:
+
+```bash
+sudo usermod -aG docker soporte
+```
+
+Despues de cambiar grupos, cierra sesion y vuelve a entrar antes de iniciar el runner.
+
+Configura opcionalmente la variable del repo:
+
+```text
+PROD_APP_DIR=/home/soporte/FormFrutaComercial
+```
+
+El workflow [../.github/workflows/deploy.yml](../.github/workflows/deploy.yml) valida y construye en `ubuntu-latest`, pero despliega solo desde el runner `formfruta-ol9`. En `workflow_dispatch`, el input `deploy_branch` viene por defecto en `feature/mvp-streamlit`.
+
+## 11. Criterios de aceptacion
 
 El despliegue queda aceptado cuando:
 
@@ -329,7 +388,8 @@ El despliegue queda aceptado cuando:
 - `smoke_test_runtime.py` termina OK
 - `smoke_test_runtime.py --sp-checks` termina OK y devuelve catalogos
 - la aplicacion responde por `http://192.168.200.74:8502/`
-- `formfruta.service` queda habilitado y estable tras reinicio del host
+- `workflow_dispatch` corre el job `deploy` en el runner `formfruta-ol9`
+- `formfruta.service` queda pendiente para la segunda fase
 - el correo queda deshabilitado hasta disponer de SMTP real
 
 ## Troubleshooting rapido

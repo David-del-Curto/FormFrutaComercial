@@ -7,12 +7,12 @@ Requires=docker.service
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-User=formfruta
-Group=formfruta
-WorkingDirectory=/home/soporte/FormFrutaComecial
+User=soporte
+Group=soporte
+WorkingDirectory=/home/soporte/FormFrutaComercial
 Environment=COMPOSE_PROJECT_NAME=formfruta
-ExecStart=/usr/bin/docker compose -f /home/soporte/FormFrutaComecial/compose.prod.yml up -d --build app
-ExecStop=/usr/bin/docker compose -f /home/soporte/FormFrutaComecial/compose.prod.yml stop app
+ExecStart=/usr/bin/docker compose -f /home/soporte/FormFrutaComercial/compose.prod.yml up -d --build app
+ExecStop=/usr/bin/docker compose -f /home/soporte/FormFrutaComercial/compose.prod.yml stop app
 TimeoutStartSec=0
 TimeoutStopSec=60
 
