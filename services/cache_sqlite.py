@@ -17,9 +17,7 @@ def get_conn():
     return conn
 
 
-def init_cache():
-    conn = get_conn()
-
+def _ensure_cache_table(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS cache (
             key TEXT PRIMARY KEY,
@@ -28,13 +26,20 @@ def init_cache():
             ttl INTEGER NOT NULL
         )
     """)
+    conn.commit()
 
+
+def init_cache():
+    conn = get_conn()
+
+    _ensure_cache_table(conn)
     conn.commit()
     conn.close()
 
 
 def get_cache_entry(key, allow_expired: bool = False):
     conn = get_conn()
+    _ensure_cache_table(conn)
 
     row = conn.execute(
         "SELECT value, created_at, ttl FROM cache WHERE key = ?",
@@ -71,6 +76,7 @@ def get_cache(key, allow_expired: bool = False):
 
 def set_cache(key, value, ttl):
     conn = get_conn()
+    _ensure_cache_table(conn)
 
     conn.execute(
         """
@@ -86,6 +92,7 @@ def set_cache(key, value, ttl):
 
 def clear_cache():
     conn = get_conn()
+    _ensure_cache_table(conn)
     conn.execute("DELETE FROM cache")
     conn.commit()
     conn.close()
