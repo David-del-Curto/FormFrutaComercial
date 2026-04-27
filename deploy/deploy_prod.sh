@@ -36,9 +36,24 @@ migrate_legacy_data() {
 
 # Preservar secrets locales antes del pull (no están en git desde chore/destrackear)
 _secrets_backup=""
+_legacy_data_backup=""
+cleanup_backups() {
+    if [ -n "$_secrets_backup" ] && [ -f "$_secrets_backup" ]; then
+        rm -f "$_secrets_backup"
+    fi
+    if [ -n "$_legacy_data_backup" ] && [ -d "$_legacy_data_backup" ]; then
+        rm -rf "$_legacy_data_backup"
+    fi
+}
+trap cleanup_backups EXIT
+
 if [ -f ".streamlit/secrets.toml" ]; then
     _secrets_backup=$(mktemp)
     cp ".streamlit/secrets.toml" "$_secrets_backup"
+fi
+if [ -d "$LEGACY_DATA_DIR" ]; then
+    _legacy_data_backup=$(mktemp -d)
+    cp -a "$LEGACY_DATA_DIR/." "$_legacy_data_backup/"
 fi
 
 # Limpiar flags skip-worktree y resetear archivos que el pull necesita tocar
@@ -54,6 +69,11 @@ if [ -n "$_secrets_backup" ] && [ -f "$_secrets_backup" ]; then
     mkdir -p .streamlit
     cp "$_secrets_backup" ".streamlit/secrets.toml"
     rm -f "$_secrets_backup"
+fi
+if [ -n "$_legacy_data_backup" ] && [ -d "$_legacy_data_backup" ]; then
+    mkdir -p "$LEGACY_DATA_DIR"
+    cp -a "$_legacy_data_backup/." "$LEGACY_DATA_DIR/"
+    rm -rf "$_legacy_data_backup"
 fi
 migrate_legacy_data
 docker compose -f compose.prod.yml build app
