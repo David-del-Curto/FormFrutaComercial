@@ -5,6 +5,8 @@ APP_DIR="${1:-/home/soporte/FormFrutaComercial}"
 DEPLOY_BRANCH="${2:-feature/mvp-streamlit}"
 DATA_VOLUME="${FORMFRUTA_DATA_VOLUME:-formfruta_data}"
 LEGACY_DATA_DIR="${FORMFRUTA_LEGACY_DATA_DIR:-$APP_DIR/data}"
+APP_UID="${FORMFRUTA_APP_UID:-10001}"
+APP_GID="${FORMFRUTA_APP_GID:-10001}"
 
 cd "$APP_DIR"
 
@@ -32,6 +34,13 @@ migrate_legacy_data() {
         -v "$DATA_VOLUME:/dest" \
         -v "$LEGACY_DATA_DIR:/src:ro" \
         busybox sh -c 'cp -a /src/. /dest/'
+}
+
+ensure_data_volume_permissions() {
+    docker volume create "$DATA_VOLUME" >/dev/null
+    docker run --rm \
+        -v "$DATA_VOLUME:/data" \
+        busybox sh -c "mkdir -p /data && chown -R $APP_UID:$APP_GID /data && chmod -R u+rwX /data"
 }
 
 wait_for_app_health() {
@@ -96,6 +105,7 @@ if [ -n "$_legacy_data_backup" ] && [ -d "$_legacy_data_backup" ]; then
     rm -rf "$_legacy_data_backup"
 fi
 migrate_legacy_data
+ensure_data_volume_permissions
 docker compose -f compose.prod.yml build app
 docker compose -f compose.prod.yml up -d app
 
