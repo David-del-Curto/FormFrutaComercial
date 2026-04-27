@@ -34,9 +34,27 @@ migrate_legacy_data() {
         busybox sh -c 'cp -a /src/. /dest/'
 }
 
+# Preservar secrets locales antes del pull (no están en git desde chore/destrackear)
+_secrets_backup=""
+if [ -f ".streamlit/secrets.toml" ]; then
+    _secrets_backup=$(mktemp)
+    cp ".streamlit/secrets.toml" "$_secrets_backup"
+fi
+
+# Limpiar flags skip-worktree y resetear archivos que el pull necesita tocar
+git update-index --no-skip-worktree .streamlit/secrets.toml data/cache.db 2>/dev/null || true
+git checkout HEAD -- .streamlit/secrets.toml data/cache.db 2>/dev/null || true
+
 git fetch --all --prune
 git checkout "$DEPLOY_BRANCH"
 git pull --ff-only origin "$DEPLOY_BRANCH"
+
+# Restaurar secrets (git pull los borró del working tree al aplicar el commit de remoción)
+if [ -n "$_secrets_backup" ] && [ -f "$_secrets_backup" ]; then
+    mkdir -p .streamlit
+    cp "$_secrets_backup" ".streamlit/secrets.toml"
+    rm -f "$_secrets_backup"
+fi
 migrate_legacy_data
 docker compose -f compose.prod.yml build app
 docker compose -f compose.prod.yml up -d app
