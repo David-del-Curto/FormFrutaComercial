@@ -3,14 +3,8 @@ name: Build And Deploy
 on:
   push:
     branches:
-      - main
       - feature/mvp-streamlit
   workflow_dispatch:
-    inputs:
-      deploy_branch:
-        description: Branch to validate and deploy
-        required: false
-        default: feature/mvp-streamlit
 
 jobs:
   validate:
@@ -20,7 +14,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.deploy_branch || github.ref }}
+          ref: feature/mvp-streamlit
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -61,7 +55,7 @@ jobs:
     runs-on: [self-hosted, linux, x64, formfruta-ol9]
     env:
       PROD_APP_DIR: ${{ vars.PROD_APP_DIR || '/home/soporte/FormFrutaComercial' }}
-      DEPLOY_BRANCH: ${{ github.event_name == 'workflow_dispatch' && inputs.deploy_branch || 'feature/mvp-streamlit' }}
+      DEPLOY_BRANCH: feature/mvp-streamlit
 
     steps:
       - name: Deploy to production

@@ -18,9 +18,18 @@ services:
       - --server.address=0.0.0.0
       - --server.port=8502
       - --browser.serverAddress=localhost
-    ports:
+      - --server.runOnSave=true
+      - --server.fileWatcherType=auto
+    ports: !override
       - "127.0.0.1:8502:8502"
     volumes:
+      - ./streamlit_app.py:/app/streamlit_app.py:ro
+      - ./engine.py:/app/engine.py:ro
+      - ./core:/app/core:ro
+      - ./services:/app/services:ro
+      - ./scripts:/app/scripts:ro
+      - ./docs:/app/docs:ro
+      - ./images:/app/images:ro
       - ./config/operacion.toml:/app/config/operacion.toml:ro
       - ./.streamlit/secrets.toml:/app/.streamlit/secrets.toml:ro
       - ./data:/app/data

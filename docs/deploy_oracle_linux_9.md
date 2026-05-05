@@ -53,7 +53,34 @@ Notas:
 - `compose.local.yml` no se copia ni se usa en el servidor.
 - El servidor debe usar `.streamlit/secrets.toml` del ambiente productivo, no el de DEV.
 - Si en produccion cambia Azure SQL, SMTP o `FORM_FRUTA_SOURCE_SYSTEM`, debes dejarlo resuelto antes del primer build remoto.
-- El despliegue automatico por GitHub Actions debe operar sobre la misma branch que esta publicada en el servidor.
+- La branch oficial de despliegue es `feature/mvp-streamlit`.
+- El despliegue automatico por GitHub Actions debe operar siempre sobre `feature/mvp-streamlit`.
+
+## Acceso SSH desde WSL
+
+Desde Windows, abre WSL y entra al servidor con el usuario operativo:
+
+```bash
+ssh soporte@192.168.200.74
+```
+
+Usa la password documentada fuera de git. Si aparece una advertencia por cambio de host key, valida primero que la IP sea correcta y luego limpia la entrada local:
+
+```bash
+ssh-keygen -R 192.168.200.74
+ssh soporte@192.168.200.74
+```
+
+Una vez dentro, confirma que estas en el host correcto antes de ejecutar acciones de despliegue:
+
+```bash
+hostname
+whoami
+ip addr show | grep 192.168.200.74 || true
+cd /home/soporte/FormFrutaComercial
+git branch --show-current
+docker compose -f compose.prod.yml ps
+```
 
 ## 1. Preparar el host Oracle Linux 9 / RHEL
 
@@ -337,6 +364,22 @@ Ese script hace:
 
 Si vas a publicar `feature/mvp-streamlit`, el primer despliegue manual y el workflow deben usar esa misma branch.
 
+## 9.1 Recarga segura de cache
+
+Los formularios y datos operativos se conservan en el volumen Docker externo `formfruta_data`. No ejecutes `docker compose down -v`, no borres el volumen y no elimines `data/cache.db`.
+
+Para refrescar cambios de catalogos, como una actualizacion en la dimension de centros, borra solo la tabla tecnica `cache` y reinicia la app para limpiar tambien la cache en memoria de Streamlit:
+
+```bash
+cd /home/soporte/FormFrutaComercial
+docker compose -f compose.prod.yml exec -T app python -c "from services.cache_sqlite import clear_cache; clear_cache(); print('cache sqlite limpia')"
+docker compose -f compose.prod.yml restart app
+curl -fsS http://127.0.0.1:8502/_stcore/health
+docker compose -f compose.prod.yml exec -T app python scripts/smoke_test_runtime.py --sp-checks
+```
+
+Este flujo ejecuta `DELETE FROM cache`; no elimina las tablas de formularios, no reemplaza el archivo SQLite completo y no toca el volumen `formfruta_data`.
+
 ## 10. CI/CD con GitHub Actions self-hosted runner
 
 El servidor publica la app por `192.168.200.74`, que es una IP privada. Por eso el despliegue automatico no debe depender de SSH desde `ubuntu-latest`; debe ejecutarse con un runner dentro del servidor o de la misma LAN.
@@ -376,7 +419,9 @@ Configura opcionalmente la variable del repo:
 PROD_APP_DIR=/home/soporte/FormFrutaComercial
 ```
 
-El workflow [../.github/workflows/deploy.yml](../.github/workflows/deploy.yml) valida y construye en `ubuntu-latest`, pero despliega solo desde el runner `formfruta-ol9`. En `workflow_dispatch`, el input `deploy_branch` viene por defecto en `feature/mvp-streamlit`.
+El workflow [../.github/workflows/deploy.yml](../.github/workflows/deploy.yml) valida y construye en `ubuntu-latest`, pero despliega solo desde el runner `formfruta-ol9`.
+
+El workflow actual solo escucha pushes a `feature/mvp-streamlit`. `workflow_dispatch` tambien valida y despliega esa misma branch, sin input manual de branch, para evitar publicar accidentalmente desde `main` u otra rama.
 
 ## 11. Criterios de aceptacion
 
@@ -388,7 +433,7 @@ El despliegue queda aceptado cuando:
 - `smoke_test_runtime.py` termina OK
 - `smoke_test_runtime.py --sp-checks` termina OK y devuelve catalogos
 - la aplicacion responde por `http://192.168.200.74:8502/`
-- `workflow_dispatch` corre el job `deploy` en el runner `formfruta-ol9`
+- `workflow_dispatch` corre el job `deploy` en el runner `formfruta-ol9` usando `feature/mvp-streamlit`
 - `formfruta.service` queda pendiente para la segunda fase
 - el correo queda deshabilitado hasta disponer de SMTP real
 

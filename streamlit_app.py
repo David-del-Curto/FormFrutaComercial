@@ -469,7 +469,7 @@ if seccion_activa == "Formulario":
 
     editando_borrador = registro_editando is not None and int(registro_editando.get("es_completo") or 0) == 0
     editando_completo = registro_editando is not None and int(registro_editando.get("es_completo") or 0) == 1
-    captura_bloqueada = registro_editando is not None
+    captura_bloqueada = editando_completo
     velocidades_bloqueadas = not editando_borrador
     puede_guardar = not editando_completo
 
@@ -479,7 +479,7 @@ if seccion_activa == "Formulario":
         if editando_borrador:
             st.info(
                 f"Editando registro #{editing_record_id} | Estado: {estado} | "
-                f"Pendientes: {pendientes}. En esta etapa solo se completan los campos pendientes."
+                f"Pendientes: {pendientes}. Puede modificar todos los campos antes de completarlo."
             )
         else:
             st.success(
