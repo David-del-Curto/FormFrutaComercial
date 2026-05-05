@@ -117,9 +117,7 @@ BEGIN
         linea_nombre            NVARCHAR(120)     NULL,
         especie_principal       NVARCHAR(120)     NULL,
         created_at              DATETIME2(0)      NOT NULL DEFAULT SYSUTCDATETIME(),
-        updated_at              DATETIME2(0)      NOT NULL DEFAULT SYSUTCDATETIME(),
-        CONSTRAINT FK_DimLinea_Centro
-            FOREIGN KEY (idCentroLogistico) REFERENCES dbo.Dim_CentrosLogisticos(idCentroLogistico)
+        updated_at              DATETIME2(0)      NOT NULL DEFAULT SYSUTCDATETIME()
     );
 
     CREATE UNIQUE INDEX UX_DimLinea_centro_linea
@@ -218,14 +216,6 @@ BEGIN
         dw_updated_at           DATETIME2(0)         NOT NULL DEFAULT SYSUTCDATETIME(),
         CONSTRAINT FK_FactFormulario_DimTurno
             FOREIGN KEY (turno_key) REFERENCES dbo.DimTurno(turno_key),
-        CONSTRAINT FK_FactFormulario_DimCentro
-            FOREIGN KEY (idCentroLogistico) REFERENCES dbo.Dim_CentrosLogisticos(idCentroLogistico),
-        CONSTRAINT FK_FactFormulario_DimProductor
-            FOREIGN KEY (idProductor) REFERENCES dbo.Dim_Productores(idProductor),
-        CONSTRAINT FK_FactFormulario_DimEspecie
-            FOREIGN KEY (idEspecie) REFERENCES dbo.Dim_Especies(idEspecie),
-        CONSTRAINT FK_FactFormulario_DimVariedad
-            FOREIGN KEY (idVariedad) REFERENCES dbo.Dim_Variedades(idVariedad),
         CONSTRAINT FK_FactFormulario_DimLinea
             FOREIGN KEY (linea_key) REFERENCES dbo.DimLinea(linea_key),
         CONSTRAINT FK_FactFormulario_DimLugarSeleccion
