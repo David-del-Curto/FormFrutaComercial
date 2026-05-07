@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from pathlib import Path
+import re
 
 try:
     import tomllib
@@ -10,6 +11,7 @@ except ModuleNotFoundError:  # pragma: no cover - Python < 3.11
 
 
 CONFIG_PATH = Path(__file__).resolve().parents[1] / "config" / "operacion.toml"
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 DEFAULT_CONFIG = {
     "screens": {},
     "mail": {
@@ -39,7 +41,7 @@ def _normalize_email_list(values) -> list[str]:
     seen: set[str] = set()
     for value in values:
         email = str(value or "").strip().lower()
-        if not email or email in seen:
+        if not email or email in seen or not EMAIL_RE.match(email):
             continue
         normalized.append(email)
         seen.add(email)
@@ -99,6 +101,7 @@ def load_operacion_config() -> dict:
             "label": str(screen.get("label") or screen_key).strip(),
             "linea": linea,
             "especie": str(screen.get("especie") or "").strip(),
+            "variedad": str(screen.get("variedad") or "").strip(),
             "view": str(screen.get("view") or "estatus").strip().lower() or "estatus",
             "refresh_seconds": max(refresh_seconds, 60),
             "lock_filters": bool(screen.get("lock_filters", True)),

@@ -1,25 +1,20 @@
 [Unit]
-Description=Form Fruta Comercial Streamlit
-After=network-online.target
+Description=Form Fruta Comercial Docker Stack
+After=docker.service network-online.target
 Wants=network-online.target
+Requires=docker.service
 
 [Service]
-Type=simple
-User=formfruta
-Group=formfruta
-WorkingDirectory=/opt/form-fruta-comercial
-Environment=PYTHONUNBUFFERED=1
-Environment=FORM_FRUTA_SOURCE_SYSTEM=form_fruta_comercial_prod_ol9
-ExecStart=/opt/form-fruta-comercial/.venv/bin/python -m streamlit run streamlit_app.py --server.address=127.0.0.1 --server.port=8501 --browser.serverAddress=formfruta.intra.empresa.local
-Restart=always
-RestartSec=5
-TimeoutStopSec=20
-NoNewPrivileges=true
-PrivateTmp=true
-ProtectHome=true
-ProtectSystem=full
-ReadWritePaths=/opt/form-fruta-comercial/data
-UMask=0077
+Type=oneshot
+RemainAfterExit=yes
+User=soporte
+Group=soporte
+WorkingDirectory=/home/soporte/FormFrutaComercial
+Environment=COMPOSE_PROJECT_NAME=formfruta
+ExecStart=/usr/bin/docker compose -f /home/soporte/FormFrutaComercial/compose.prod.yml up -d --build app
+ExecStop=/usr/bin/docker compose -f /home/soporte/FormFrutaComercial/compose.prod.yml stop app
+TimeoutStartSec=0
+TimeoutStopSec=60
 
 [Install]
 WantedBy=multi-user.target

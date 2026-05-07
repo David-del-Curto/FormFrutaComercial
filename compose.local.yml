@@ -1,0 +1,45 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: formfruta-app
+    restart: always
+    environment:
+      PYTHONUNBUFFERED: "1"
+      FORM_FRUTA_SOURCE_SYSTEM: form_fruta_comercial_dev_local
+      TZ: America/Santiago
+    command:
+      - python
+      - -m
+      - streamlit
+      - run
+      - streamlit_app.py
+      - --server.address=0.0.0.0
+      - --server.port=8502
+      - --browser.serverAddress=localhost
+      - --server.runOnSave=true
+      - --server.fileWatcherType=auto
+    ports: !override
+      - "127.0.0.1:8502:8502"
+    volumes:
+      - ./streamlit_app.py:/app/streamlit_app.py:ro
+      - ./engine.py:/app/engine.py:ro
+      - ./core:/app/core:ro
+      - ./services:/app/services:ro
+      - ./scripts:/app/scripts:ro
+      - ./docs:/app/docs:ro
+      - ./images:/app/images:ro
+      - ./config/operacion.toml:/app/config/operacion.toml:ro
+      - ./.streamlit/secrets.toml:/app/.streamlit/secrets.toml:ro
+      - ./data:/app/data
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8502/_stcore/health', timeout=5).read()"
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s

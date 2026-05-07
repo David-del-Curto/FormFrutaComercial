@@ -34,6 +34,17 @@ Ese script:
   - `dbo.FactFormulario`
   - `dbo.FactFormularioDefecto`
 
+Adicionalmente, el DW destino ya cuenta con una dimension de fechas existente:
+
+- `dbo.Dim_Date`
+  - PK: `idFecha` `INT`
+  - fecha natural: `FechaCompleta` `DATE`
+
+La integracion futura del hecho debe resolver ambas fechas del formulario contra esa dimension:
+
+- `fecha`
+- `fecha_operacional`
+
 El archivo [azure_dw_form_fruta_comercial.sql](C:/DEV/FormFrutaComercial/sql/azure_dw_form_fruta_comercial.sql) queda solo como referencia historica del modelo legacy en esquema `dw`.
 
 ## 3. Grano recomendado
@@ -84,18 +95,41 @@ Encabezado:
 - `fecha_operacional`
 - `turno_codigo`
 - `linea_codigo`
+- `linea_nombre`
 - `especie`
+- `especie_principal_linea`
 - `variedad`
 - `lote`
+- `centro_codigo`
+- `centro_nombre`
+- `centro_display`
+- `productor_codigo`
+- `productor_nombre`
+- `productor_display`
+- `lugar_codigo`
+- `lugar_nombre`
+- `verificador`
+- `observaciones`
 - `cant_muestra`
 - `suma_defectos`
 - `fruta_comercial`
 - `fruta_sana`
 - `choice`
 - porcentajes y velocidades
+- `centro_sin_definir`
 - `estado_formulario`
 - `es_completo`
+- `campos_pendientes`
+- `created_at`
 - `updated_at`
+
+Decisiones Fase 0 vigentes:
+
+- `kg_ultima_hora` no forma parte del contrato de `stg.FormularioHeader`.
+- `kg_ultima_hora` permanece como dato operacional local hasta definir un uso analitico formal.
+- `observaciones` viaja a staging y hecho como atributo de auditoria/consulta.
+- `campos_pendientes` viaja a staging para trazabilidad de captura; su ubicacion final en el core se revisa en la siguiente fase.
+- `especie_principal_linea` viaja en el contrato de staging y puede venir nulo mientras la app no lo persista.
 
 Defectos:
 
@@ -108,10 +142,20 @@ Defectos:
 ## 8. Validaciones recomendadas en ETL
 
 - `cant_muestra >= fruta_comercial`
-- `fruta_comercial = suma_defectos + choice`
+- `fruta_comercial = suma_defectos`
+- `fruta_sana + choice + suma_defectos = cant_muestra`
 - `centro_codigo` no nulo en carga productiva
 - no cargar duplicados del mismo `source_business_key`
 - no promover a hechos formularios con `es_completo = 0`
+
+Llaves naturales oficiales Fase 0:
+
+- centro logistico: `CodCentro_SAP`
+- productor: `CodProductor_SAP`
+- especie: `Especie`
+- variedad: `(idEspecie, Variedad)` derivada desde `Especie + Variedad`
+- formulario: `(source_system, source_business_key)`
+- fecha DW: `idFecha` en `dbo.Dim_Date`, derivado desde la fecha calendario del formulario
 
 ## 9. Ejemplo minimo de uso
 

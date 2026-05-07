@@ -20,9 +20,9 @@ LUGAR_SELECCION = {
 }
 
 LINEAS_BASE = {
-    "1": "Linea 1",
-    "2": "Linea 2",
-    "3": "Linea 3",
+    "1": "Línea 1",
+    "2": "Línea 2",
+    "3": "Línea 3",
 }
 
 LINEAS_DIM = (

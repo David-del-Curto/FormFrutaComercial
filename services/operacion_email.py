@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import smtplib
 import ssl
 from email.message import EmailMessage
@@ -22,6 +23,7 @@ from services.operacion_status import (
 
 
 SECRETS_PATH = Path(__file__).resolve().parents[1] / ".streamlit" / "secrets.toml"
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 def _normalize_bool(value, default: bool = False) -> bool:
@@ -42,7 +44,7 @@ def _normalize_recipients(recipients) -> list[str]:
     seen: set[str] = set()
     for value in recipients:
         email = str(value or "").strip().lower()
-        if not email or email in seen:
+        if not email or email in seen or not EMAIL_RE.match(email):
             continue
         normalized.append(email)
         seen.add(email)
@@ -87,7 +89,7 @@ def send_email(subject: str, html_body: str, recipients, text_body: str | None =
     required_keys = ["host", "port", "from_email"]
     missing = [key for key in required_keys if not settings.get(key)]
     if missing:
-        raise ValueError(f"Configuracion SMTP incompleta: faltan {', '.join(missing)}")
+        raise ValueError(f"Configuración SMTP incompleta: faltan {', '.join(missing)}")
 
     message = EmailMessage()
     from_name = str(settings.get("from_name") or "").strip()
@@ -95,8 +97,11 @@ def send_email(subject: str, html_body: str, recipients, text_body: str | None =
     message["Subject"] = subject
     message["From"] = f"{from_name} <{from_email}>" if from_name else from_email
     message["To"] = ", ".join(recipient_list)
-    message.set_content(text_body or "Este correo requiere un cliente compatible con HTML.")
-    message.add_alternative(html_body, subtype="html")
+    message.set_content(
+        text_body or "Este correo requiere un cliente compatible con HTML.",
+        charset="utf-8",
+    )
+    message.add_alternative(html_body, subtype="html", charset="utf-8")
 
     use_ssl = bool(settings.get("use_ssl"))
     use_tls = bool(settings.get("use_tls")) and not use_ssl
@@ -146,7 +151,7 @@ def _kpi_cards(snapshot: dict) -> str:
         ("Borradores", format_number_latam(summary["borradores"], 0)),
         ("Muestra", format_number_latam(summary["muestra_total"], 0)),
         ("Kg Exportable 1h", format_quantity_latam(kpis["kg_exportable_total"])),
-        ("% FBC 1h", format_percent_latam(kpis["porc_fbc"], 1)),
+        ("% FBC Absoluto 1h", format_percent_latam(kpis["porc_fbc"], 1)),
     ]
     pieces = []
     for label, value in cards:
@@ -170,15 +175,13 @@ def _window_summary(snapshot: dict) -> str:
         "<div style='display:flex;gap:18px;flex-wrap:wrap;margin:12px 0 20px 0;'>"
         f"<div><strong>Estado actual:</strong> {escape(semaforo_estado)}</div>"
         "<div><strong>Bandas:</strong> Verde &lt; 1,0 | Amarillo 1,0-1,49 | Rojo &gt;= 1,5</div>"
-        f"<div><strong>Ventana logica 1h:</strong> {escape(logical_start)} - {escape(logical_end)}</div>"
-        f"<div><strong>Registros encontrados:</strong> {escape(observed_start)} - {escape(observed_end)}</div>"
         "</div>"
     )
 
 
 def _line_table(line_snapshots: dict[str, dict]) -> str:
     if not line_snapshots:
-        return "<p>No hay lineas configuradas para resumir.</p>"
+        return "<p>No hay líneas configuradas para resumir.</p>"
 
     rows = []
     for linea, snapshot in sorted(line_snapshots.items()):
@@ -196,9 +199,9 @@ def _line_table(line_snapshots: dict[str, dict]) -> str:
     return (
         "<table style='width:100%;border-collapse:collapse;margin-top:12px;'>"
         "<thead><tr>"
-        "<th style='text-align:left;padding:8px 10px;border-bottom:1px solid #4b5563;'>Linea</th>"
+        "<th style='text-align:left;padding:8px 10px;border-bottom:1px solid #4b5563;'>Línea</th>"
         "<th style='text-align:right;padding:8px 10px;border-bottom:1px solid #4b5563;'>Formularios</th>"
-        "<th style='text-align:right;padding:8px 10px;border-bottom:1px solid #4b5563;'>% FBC 1h</th>"
+        "<th style='text-align:right;padding:8px 10px;border-bottom:1px solid #4b5563;'>% FBC Absoluto 1h</th>"
         "<th style='text-align:right;padding:8px 10px;border-bottom:1px solid #4b5563;'>Kg Exportable 1h</th>"
         "<th style='text-align:left;padding:8px 10px;border-bottom:1px solid #4b5563;'>Estado</th>"
         "</tr></thead><tbody>"
@@ -208,12 +211,12 @@ def _line_table(line_snapshots: dict[str, dict]) -> str:
 
 
 def build_general_digest_email(fecha_operacional: str, general_snapshot: dict, line_snapshots: dict[str, dict]) -> tuple[str, str]:
-    title = f"Resumen Estatus Operacion {fecha_operacional}"
+    title = f"Resumen Status Operación {fecha_operacional}"
     body = (
-        f"<p>Resumen general del dia operacional <strong>{escape(fecha_operacional)}</strong>.</p>"
+        f"<p>Resumen general del día operacional <strong>{escape(fecha_operacional)}</strong>.</p>"
         + _kpi_cards(general_snapshot)
         + _window_summary(general_snapshot)
-        + "<h3 style='margin-top:24px;color:#f8fafc;'>Resumen por linea</h3>"
+        + "<h3 style='margin-top:24px;color:#f8fafc;'>Resumen por línea</h3>"
         + _line_table(line_snapshots)
     )
     return title, _wrap_email_html(title, body)
@@ -221,9 +224,9 @@ def build_general_digest_email(fecha_operacional: str, general_snapshot: dict, l
 
 def build_line_digest_email(fecha_operacional: str, linea: str, snapshot: dict) -> tuple[str, str]:
     line_label = LINEAS.get(linea, linea)
-    title = f"Estatus Operacion {fecha_operacional} - {line_label}"
+    title = f"Status Operación {fecha_operacional} - {line_label}"
     body = (
-        f"<p>Resumen de linea <strong>{escape(line_label)}</strong> ({escape(linea)}) para el dia operacional <strong>{escape(fecha_operacional)}</strong>.</p>"
+        f"<p>Resumen de línea <strong>{escape(line_label)}</strong> ({escape(linea)}) para el día operacional <strong>{escape(fecha_operacional)}</strong>.</p>"
         + _kpi_cards(snapshot)
         + _window_summary(snapshot)
     )
@@ -236,7 +239,7 @@ def build_alert_email(fecha_operacional: str, linea: str, snapshot: dict, thresh
     threshold_label = format_number_latam(threshold, 1)
     title = f"ALERTA FBC {line_label} {fecha_operacional}"
     body = (
-        f"<p>La linea <strong>{escape(line_label)}</strong> ({escape(linea)}) supero el umbral de <strong>{escape(threshold_label)} %</strong> en el KPI <strong>% FBC 1h</strong>.</p>"
+        f"<p>La línea <strong>{escape(line_label)}</strong> ({escape(linea)}) superó el umbral de <strong>{escape(threshold_label)} %</strong> en el KPI <strong>% FBC Absoluto 1h</strong>.</p>"
         f"<p>Valor actual: <strong>{escape(current_value)}</strong>.</p>"
         + _kpi_cards(snapshot)
         + _window_summary(snapshot)

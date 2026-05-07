@@ -26,11 +26,11 @@ lock_filters = true
 hide_sidebar = true
 
 [mail]
-global_recipients = ["bastian.barahona@ddc.cl"]
-digest_times = ["08:00", "12:00", "17:00", "22:00"]
+global_recipients = ["bastian.barahona@ddc.cl", "max.yulis@ddc.cl","martin.urzua@ddc.cl", "juan.rodriguez@ddc.cl", "patricio.roman@ddc.cl", "carlos.reyes@ddc.cl"]
+digest_times = ["9:00", "12:00", "17:00", "22:00"]
 alert_threshold_fbc = 1.5
 
 [mail.line_recipients]
-LIN_01 = ["bastian.barahona@ddc.cl"]
-LIN_02 = []
-LIN_03 = []
+LIN_01 = ["juan.rodriguez@ddc.cl","bastian.barahona@ddc.cl"]
+LIN_02 = ["juan.rodriguez@ddc.cl",]
+LIN_03 = ["juan.rodriguez@ddc.cl",]

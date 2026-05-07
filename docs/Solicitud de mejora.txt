@@ -1,0 +1,362 @@
+Quisiéramos solicitar como área de calidad la incorporación de algunos daños a la pagina en la cual se digitan los muestreos de fruta comercial en línea de proceso, los daños de condición y calidad son los siguientes:
+
+Venturia
+Penacho
+Quemado de sol
+Infiltración
+Pardeamiento
+Corcho
+Eulia
+Daño químico
+
+Sí, claro, pues ese es una mejora que tenemos que revisar.
+Juan Pablo Rodriguez 0 minutos 9 segundos
+Yo entiendo que el límite es un uno, por lo menos, nosotros manejamos un 1% del absoluto del absoluto, del absoluto. Eso y manejar ese mismo estándar. Sí, pero nosotros vamos a hacer revisiones de 100 frutos al constante, ¿me entiendes? A lo mejor no van a ser siempre 10 por otra, a lo mejor van a ser menos, van a ser más.
+Juan Pablo Rodriguez 0 minutos 33 segundos
+entonces ahí tienen que ver la fórmula cómo lo llena la fórmula Sí sí sí yo yo me preocupo de eso no si yo yo entiendo cómo hacerlo ya eso bastián eh teníamos dos dos alcances uno con el gráfico
+
+Bastian Barahona Bustos
+0 minutos 43 segundos0:43
+Bastian Barahona Bustos 0 minutos 43 segundos
+Yep.
+
+Juan Pablo Rodriguez
+0 minutos 49 segundos0:49
+Juan Pablo Rodriguez 0 minutos 49 segundos
+Con este que dice tendencia.
+
+Bastian Barahona Bustos
+0 minutos 52 segundos0:52
+Bastian Barahona Bustos 0 minutos 52 segundos
+Claro, ahí le explicaba a Sergio que ese gráfico porque muestra 10, o sea, 100 y 50 al lado, en el lado izquierdo donde dice valor, volví a subir el cambio donde dice muestra, ese es el valor de la muestra, o sea, cada 1 hora, por ejemplo, a las 8:00 vaciamos 100 muestras a las 9:50 muestras y así.
+
+Juan Pablo Rodriguez
+0 minutos 55 segundos0:55
+Juan Pablo Rodriguez 0 minutos 55 segundos
+Yeah.
+
+Bastian Barahona Bustos
+1 minuto 13 segundos1:13
+Bastian Barahona Bustos 1 minuto 13 segundos
+Que por eso lo que le hay que saber como variabilidad para que se se viera un poquitito el número a eso, a eso es lo que corresponde.
+
+Juan Pablo Rodriguez
+1 minuto 18 segundos1:18
+Juan Pablo Rodriguez 1 minuto 18 segundos
+Ya ahí estoy mostrando la cantidad de muestra, oye, pero no sé, podríamos mejor mostrar el FVC mejor en ese gráfico.
+
+Bastian Barahona Bustos
+1 minuto 27 segundos1:27
+Bastian Barahona Bustos 1 minuto 27 segundos
+Sí, claro, lo tengo anotado aquí, que lo voy a integrar el kilo por hora de FBC.
+
+Bastian Barahona Bustos
+9 minutos 55 segundos9:55
+Bastian Barahona Bustos 9 minutos 55 segundos
+¿Te gustaría descargar algo así como este Excel?
+Bastian Barahona Bustos 10 minutos 1 segundo
+Algo así.
+Bastian Barahona Bustos 10 minutos 4 segundos
+Como lo que va.
+
+Juan Pablo Rodriguez
+10 minutos 7 segundos10:07
+Juan Pablo Rodriguez 10 minutos 7 segundos
+Claro.
+
+Bastian Barahona Bustos
+10 minutos 9 segundos10:09
+Bastian Barahona Bustos 10 minutos 9 segundos
+Porque si tú.
+
+Juan Pablo Rodriguez
+10 minutos 9 segundos10:09
+Juan Pablo Rodriguez 10 minutos 9 segundos
+Sí, porque uno después.
+Juan Pablo Rodriguez 10 minutos 12 segundos
+Hi.
+
+Bastian Barahona Bustos
+10 minutos 13 segundos10:13
+Bastian Barahona Bustos 10 minutos 13 segundos
+Aquí tienes un botón donde puedes descargar este set de datos.
+
+Juan Pablo Rodriguez
+10 minutos 18 segundos10:18
+Juan Pablo Rodriguez 10 minutos 18 segundos
+¿A dónde?
+
+Bastian Barahona Bustos
+10 minutos 21 segundos10:21
+Bastian Barahona Bustos 10 minutos 21 segundos
+Aquí, mira, tú estás aquí y lo puedes ver ahí mismo al lado del.
+
+Juan Pablo Rodriguez
+10 minutos 23 segundos10:23
+Juan Pablo Rodriguez 10 minutos 23 segundos
+Yeah.
+Juan Pablo Rodriguez 10 minutos 27 segundos
+ya.
+
+Bastian Barahona Bustos
+10 minutos 30 segundos10:30
+Bastian Barahona Bustos 10 minutos 30 segundos
+¿Puedes quitar columna, puedes agregar columna?
+Bastian Barahona Bustos 10 minutos 34 segundos
+Y al lado tiene el descargable, entonces tú abres ahí y se te abre un Excel.
+
+Juan Pablo Rodriguez
+10 minutos 34 segundos10:34
+Juan Pablo Rodriguez 10 minutos 34 segundos
+Yeah.
+
+Bastian Barahona Bustos
+10 minutos 43 segundos10:43
+Bastian Barahona Bustos 10 minutos 43 segundos
+Que es un archivo del CSV que después ahí viene separado por comas.
+Bastian Barahona Bustos 10 minutos 51 segundos
+Y puedes ver ya lo que tienes.
+
+Juan Pablo Rodriguez
+10 minutos 54 segundos10:54
+Juan Pablo Rodriguez 10 minutos 54 segundos
+Perfecto.
+
+Bastian Barahona Bustos
+10 minutos 57 segundos10:57
+Bastian Barahona Bustos 10 minutos 57 segundos
+Es descargable.
+Bastian Barahona Bustos 10 minutos 59 segundos
+Tanto ese como cualquier otro, ese también.
+Bastian Barahona Bustos 11 minutos 3 segundos
+Puede hacer una búsqueda de algún registro.
+Bastian Barahona Bustos 11 minutos 7 segundos
+Pues lo puedes ampliar para verlo más mejor cuando son más grandes, eso con cualquiera de estos de estos indicadores.
+Bastian Barahona Bustos 11 minutos 16 segundos
+También con los gráficos los puedes ver en forma de tabla.
+Bastian Barahona Bustos 11 minutos 22 segundos
+O como gráfico puedes volver y cuando lo tienes en forma de tabla, puedes descargar el archivo de un CCV para hacer análisis.
+
+Juan Pablo Rodriguez
+11 minutos 34 segundos11:34
+Juan Pablo Rodriguez 11 minutos 34 segundos
+Perfecto.
+Juan Pablo Rodriguez 11 minutos 36 segundos
+Entonces sí se puede descargar.
+
+Bastian Barahona Bustos
+11 minutos 38 segundos11:38
+Bastian Barahona Bustos 11 minutos 38 segundos
+Sí, eso es descargable manualmente, ya automatizarlo. Ahí ya son otras palabras, pero manualmente todo lo que tú ves acá lo puedes descargar.
+Bastian Barahona Bustos 11 minutos 50 segundos
+Tienes que los gráficos tienes que llevarlo a tabla, que es un botoncito y después apretar el otro botón de descargar. Y cuando ya están en formato tabular, aquí puedes descargarlo directamente. Si quieres descargar menos menos un análisis más agotado, sacar algunas columnas, puedes hacerlo ahí.
+Bastian Barahona Bustos 12 minutos 10 segundos
+Y descarga solamente las columnas que quieres visualizar tú, las otras que no te sirven no las ven, no.
+
+Juan Pablo Rodriguez
+12 minutos 16 segundos12:16
+Juan Pablo Rodriguez 12 minutos 16 segundos
+Perfecto.
+
+Bastian Barahona Bustos
+12 minutos 21 segundos12:21
+Bastian Barahona Bustos 12 minutos 21 segundos
+Eso a eso más o menos apuntaba el querer descargar, cierto, o buscar algo que como que se envíe.
+
+Juan Pablo Rodriguez
+12 minutos 24 segundos12:24
+Juan Pablo Rodriguez 12 minutos 24 segundos
+Sí, para mí, para mí descargable es que después podamos tomar la base así haya que hacer alguna operación. Mientras tanto, que queda en una tabla para que los chiquillos también les sirva, se pueda trabajar con ella.
+
+Bastian Barahona Bustos
+12 minutos 38 segundos12:38
+Bastian Barahona Bustos 12 minutos 38 segundos
+Ya, ojo, también.
+
+Juan Pablo Rodriguez
+12 minutos 39 segundos12:39
+Juan Pablo Rodriguez 12 minutos 39 segundos
+En la actualidad los chiquillos no tienen que pasar toda esta cuestión a mano.
+
+Bastian Barahona Bustos
+12 minutos 44 segundos12:44
+Bastian Barahona Bustos 12 minutos 44 segundos
+Exactamente, ojo, que también esta tabla, lo que tú estás viendo acá, todo esto es del día, no es el acumulado, no tengo un mes para atrás y todo eso. Si queremos, ahí también son otras palabras, si tú quieres ver la semana para atrás o 2 días para.
+Bastian Barahona Bustos 13 minutos 2 segundos
+O el mes, ahí ya sería otro, porque no es la idea descargarlo día por día. Entonces ahí tendríamos que hacer otra otra cosa o ir directamente a al warehouse.
+
+Juan Pablo Rodriguez
+13 minutos 3 segundos13:03
+Juan Pablo Rodriguez 13 minutos 3 segundos
+Yeah.
+Juan Pablo Rodriguez 13 minutos 6 segundos
+Ya.
+Juan Pablo Rodriguez 13 minutos 13 segundos
+Pero los datos no quedan en una base de datos, en un en un data warehouse.
+
+Bastian Barahona Bustos
+13 minutos 17 segundos13:17
+Bastian Barahona Bustos 13 minutos 17 segundos
+Sí sí va a quedar en el Data warehouse esa esa es lo otro el histórico va a quedar en el Data warehouse yo te voy a estar mostrando lo que vamos del día lo que hubo tales días me entiendes ahí tú cuando vas seleccionando puedes seleccionar cualquier día y y vas a ver lo que lo que había en ese momento pero de ese día
+
+Juan Pablo Rodriguez
+13 minutos 36 segundos13:36
+Juan Pablo Rodriguez 13 minutos 36 segundos
+Ya de ese día, pero si yo si tú me si yo me piden, tienen los datos acumulados, ¿cómo los des los podría descargar?
+
+Bastian Barahona Bustos
+13 minutos 36 segundos13:36
+Bastian Barahona Bustos 13 minutos 36 segundos
+No va a ir acumulado.
+Bastian Barahona Bustos 13 minutos 44 segundos
+Desde el data warehouse tú te conectas a través de, por ejemplo, Excel.
+Bastian Barahona Bustos 13 minutos 50 segundos
+¿Obtienes datos desde una base de datos?
+Bastian Barahona Bustos 13 minutos 53 segundos
+Conectado a Astor.
+
+Juan Pablo Rodriguez
+13 minutos 57 segundos13:57
+Juan Pablo Rodriguez 13 minutos 57 segundos
+Ya, o sea, podríamos tener un y para desarrollar eso que sea sea automático de la descarga, visualizar para atrás es mucho el S o, ¿no?
+
+Bastian Barahona Bustos
+14 minutos 8 segundos14:08
+Bastian Barahona Bustos 14 minutos 8 segundos
+No es mucho para visualizar hacia atrás, por ejemplo, si es que no vas a contar con el BI, podemos.
+
+Juan Pablo Rodriguez
+14 minutos 18 segundos14:18
+Juan Pablo Rodriguez 14 minutos 18 segundos
+Bueno, es que esta cuestión también va a estar en.
+
+Bastian Barahona Bustos
+14 minutos 21 segundos14:21
+Bastian Barahona Bustos 14 minutos 21 segundos
+Claro.
+
+Juan Pablo Rodriguez
+14 minutos 22 segundos14:22
+Juan Pablo Rodriguez 14 minutos 22 segundos
+Bueno, sí, buenísimo, entonces quizás ahí no hay que descargar porque los datos van a estar en esa base de datos y con esa visualización.
+
+Bastian Barahona Bustos
+14 minutos 23 segundos14:23
+Bastian Barahona Bustos 14 minutos 23 segundos
+Claro.
+Bastian Barahona Bustos 14 minutos 32 segundos
+Claro, entonces lo más probable es que Carolina, independiente, que no sé, deje un deje un.
+
+Juan Pablo Rodriguez
+14 minutos 33 segundos14:33
+Juan Pablo Rodriguez 14 minutos 33 segundos
+No sé.
+Juan Pablo Rodriguez 14 minutos 36 segundos
+I need a pretty.
+
+Bastian Barahona Bustos
+14 minutos 44 segundos14:44
+Bastian Barahona Bustos 14 minutos 44 segundos
+¿Cómo se llama esto? Deje una tablita chiquita en el en lo que es el BI, siempre ella deja una tabla de detalles.
+
+Juan Pablo Rodriguez
+14 minutos 54 segundos14:54
+Juan Pablo Rodriguez 14 minutos 54 segundos
+Claro.
+
+Bastian Barahona Bustos
+14 minutos 54 segundos14:54
+Bastian Barahona Bustos 14 minutos 54 segundos
+Siempre ella deja una tabla de detalles, por ejemplo.
+Bastian Barahona Bustos 15 minutos
+Esperando que cargue el informe.
+Bastian Barahona Bustos 15 minutos 4 segundos
+No.
+
+Juan Pablo Rodriguez
+15 minutos 7 segundos15:07
+Juan Pablo Rodriguez 15 minutos 7 segundos
+Are you there?
+
+Bastian Barahona Bustos
+15 minutos 7 segundos15:07
+Bastian Barahona Bustos 15 minutos 7 segundos
+Por ejemplo, dentro de todo esto, ella siempre deja.
+Bastian Barahona Bustos 15 minutos 13 segundos
+como este tipo de tabla Entonces eso uno lo amplía y después lo lo puede descargar para hacer análisis todo el cuento siempre lleva la tabla completa y la va y la va filtrando para ir haciendo el vi pero se puede hacer de otra manera de otra manera podemos automatizar no sé que este histórico del mes o el acumulado de la semana
+
+Juan Pablo Rodriguez
+15 minutos 17 segundos15:17
+Juan Pablo Rodriguez 15 minutos 17 segundos
+Rada.
+Juan Pablo Rodriguez 15 minutos 20 segundos
+sí.
+Juan Pablo Rodriguez 15 minutos 25 segundos
+Sí, claro.
+
+Bastian Barahona Bustos
+15 minutos 35 segundos15:35
+Bastian Barahona Bustos 15 minutos 35 segundos
+Te vaya llegando un Excel a un checkpoint. Podríamos hacer eso ya en un en una última fase, pero se puede hacer.
+Bastian Barahona Bustos 15 minutos 46 segundos
+La idea es que le llegue esta información a las personas.
+
+Juan Pablo Rodriguez
+15 minutos 52 segundos15:52
+Juan Pablo Rodriguez 15 minutos 52 segundos
+Perfecto, no queda bien, queda bien así. Ahí me aclaraste mi duda de dónde podríamos disponer los datos y desde el Power BI finalmente.
+
+Bastian Barahona Bustos
+16 minutos 1 segundo16:01
+Bastian Barahona Bustos 16 minutos 1 segundo
+Claro.
+
+Juan Pablo Rodriguez
+16 minutos 2 segundos16:02
+Juan Pablo Rodriguez 16 minutos 2 segundos
+Entonces, bueno, preparémonos nosotros para una reunión, yo creo que para el miércoles, marzo miércoles.
+Juan Pablo Rodriguez 16 minutos 9 segundos
+Con Patricio para mostrar el avance de esto, aunque igual me habló de que se iban a juntar con Juan Pablo y con Martín la en algún momento de la próxima semana, hueón, no sé si lunes o martes.
+
+Bastian Barahona Bustos
+16 minutos 16 segundos16:16
+Bastian Barahona Bustos 16 minutos 16 segundos
+Thank you.
+Bastian Barahona Bustos 16 minutos 22 segundos
+Mira, justamente el miércoles, este miércoles primero de abril tengo reunión yo con Martin y con Carolina, y ahí es donde vemos el avance de todos los de todos los días que vamos llevando y dentro de ellos de este de este de estos avances que informamos está este está este reporte. Entonces yo creo que.
+Bastian Barahona Bustos 16 minutos 46 segundos
+Si es para el miércoles y estas personas no tienen otra reunión antes, podríamos aprovechar también esa instancia. Nosotros nos reunimos de 11 a 12.
+
+Juan Pablo Rodriguez
+16 minutos 56 segundos16:56
+Juan Pablo Rodriguez 16 minutos 56 segundos
+Ya yo creo que no hay problema, por último me conviene ahí, yo me sumo.
+
+Bastian Barahona Bustos
+17 minutos17:00
+Bastian Barahona Bustos 17 minutos
+Mhm.
+Bastian Barahona Bustos 17 minutos 2 segundos
+Pues ahí ve tu agenda, cómo te puedo organizar ahí con tu gente, pero eso es más o menos lo que vamos a hacer nosotros la próxima semana.
+
+Juan Pablo Rodriguez
+17 minutos 11 segundos17:11
+Juan Pablo Rodriguez 17 minutos 11 segundos
+Yeah, perfect.
+
+Bastian Barahona Bustos
+17 minutos 13 segundos17:13
+Bastian Barahona Bustos 17 minutos 13 segundos
+Genial, voy con esto va justo entonces Juan Pablo.
+
+Juan Pablo Rodriguez
+17 minutos 14 segundos17:14
+Juan Pablo Rodriguez 17 minutos 14 segundos
+Ya.
+Juan Pablo Rodriguez 17 minutos 17 segundos
+Vale, Bastian, muchas gracias. Sebastián, un abrazo. Estoy bien.
+
+Bastian Barahona Bustos
+17 minutos 19 segundos17:19
+Bastian Barahona Bustos 17 minutos 19 segundos
+Gracias, Sergio, que estén bien, chao chao.

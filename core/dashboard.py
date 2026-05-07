@@ -17,8 +17,9 @@ from services.operacion_status import (
 
 
 MOVING_WINDOW_HOURS = 1
-TODAS_LINEAS_OPTION = "Todas las lineas"
+TODAS_LINEAS_OPTION = "Todas las líneas"
 TODAS_ESPECIES_OPTION = "Todas las especies"
+TODAS_VARIEDADES_OPTION = "Todas las variedades"
 PRIMARY_CHART_HEIGHT = 340
 SECONDARY_CHART_HEIGHT = 320
 SEMAFORO_CHART_HEIGHT = 110
@@ -159,10 +160,11 @@ def _render_dashboard_filters(
     records_df: pd.DataFrame,
     fecha_operacional_value,
     screen_context: dict | None = None,
-) -> tuple[pd.DataFrame, str, str]:
+) -> tuple[pd.DataFrame, str, str, str]:
     screen_context = screen_context or {}
     forced_linea = str(screen_context.get("linea") or "").strip()
     forced_especie = str(screen_context.get("especie") or "").strip()
+    forced_variedad = str(screen_context.get("variedad") or "").strip()
     lock_filters = bool(screen_context.get("lock_filters"))
 
     lineas_disponibles = sorted(
@@ -179,7 +181,9 @@ def _render_dashboard_filters(
 
     linea_key = "bi_linea_filtro"
     especie_key = "bi_especie_filtro"
+    variedad_key = "bi_variedad_filtro"
     linea_prev_key = "bi_linea_filtro_prev"
+    especie_prev_key = "bi_especie_filtro_prev"
 
     _ensure_select_state(linea_key, lineas_options, TODAS_LINEAS_OPTION)
     if forced_linea:
@@ -187,16 +191,16 @@ def _render_dashboard_filters(
     if linea_prev_key not in st.session_state:
         st.session_state[linea_prev_key] = st.session_state[linea_key]
 
-    col_fecha, col_linea, col_especie = st.columns([1, 1, 1])
+    col_fecha, col_linea, col_especie, col_variedad = st.columns([1, 1, 1, 1])
     with col_fecha:
         st.date_input(
-            "Dia operacional",
+            "Día operacional",
             key="bi_fecha_operacional",
             disabled=lock_filters,
         )
     with col_linea:
         linea_seleccionada = st.selectbox(
-            "Linea",
+            "Línea",
             options=lineas_options,
             key=linea_key,
             format_func=lambda x: x if x == TODAS_LINEAS_OPTION else _linea_label(x),
@@ -204,6 +208,8 @@ def _render_dashboard_filters(
         )
 
     line_changed = st.session_state.get(linea_prev_key) != linea_seleccionada
+    if especie_prev_key not in st.session_state:
+        st.session_state[especie_prev_key] = st.session_state.get(especie_key)
 
     if linea_seleccionada == TODAS_LINEAS_OPTION:
         base_especies_df = records_df.copy()
@@ -240,12 +246,47 @@ def _render_dashboard_filters(
             disabled=lock_filters,
         )
 
+    especie_changed = st.session_state.get(especie_prev_key) != especie_seleccionada
+
+    if especie_seleccionada == TODAS_ESPECIES_OPTION:
+        base_variedades_df = base_especies_df.copy()
+    else:
+        base_variedades_df = base_especies_df.loc[
+            base_especies_df["especie"].astype(str) == especie_seleccionada
+        ].copy()
+
+    variedades_disponibles = sorted(
+        {
+            str(variedad).strip()
+            for variedad in base_variedades_df.get("variedad", pd.Series(dtype="object")).dropna().tolist()
+            if str(variedad).strip()
+        },
+        key=str.upper,
+    )
+    variedades_options = [TODAS_VARIEDADES_OPTION, *variedades_disponibles]
+
+    if forced_linea and lock_filters:
+        st.session_state[variedad_key] = forced_variedad or TODAS_VARIEDADES_OPTION
+    elif line_changed or especie_changed:
+        st.session_state[variedad_key] = TODAS_VARIEDADES_OPTION
+
+    _ensure_select_state(variedad_key, variedades_options, TODAS_VARIEDADES_OPTION)
+    with col_variedad:
+        variedad_seleccionada = st.selectbox(
+            "Variedad",
+            options=variedades_options,
+            key=variedad_key,
+            disabled=lock_filters,
+        )
+
     st.session_state[linea_prev_key] = linea_seleccionada
+    st.session_state[especie_prev_key] = especie_seleccionada
 
     filtered_df = apply_record_filters(
         records_df,
         linea=None if linea_seleccionada == TODAS_LINEAS_OPTION else linea_seleccionada,
         especie=None if especie_seleccionada == TODAS_ESPECIES_OPTION else especie_seleccionada,
+        variedad=None if variedad_seleccionada == TODAS_VARIEDADES_OPTION else variedad_seleccionada,
     )
 
     especie_principal = _especie_principal_linea(linea_seleccionada)
@@ -256,7 +297,7 @@ def _render_dashboard_filters(
             "Puede ajustar la especie manualmente si corresponde."
         )
 
-    return filtered_df, linea_seleccionada, especie_seleccionada
+    return filtered_df, linea_seleccionada, especie_seleccionada, variedad_seleccionada
 
 
 def _last_moving_hour(records_df: pd.DataFrame) -> pd.DataFrame:
@@ -325,12 +366,12 @@ def _build_semaforo_chart(porc_fbc: float):
     max_domain = max(2.0, round(max(porc_fbc, 1.5) * 1.25, 2))
     bandas_df = pd.DataFrame(
         [
-            {"inicio": 0.0, "fin": 1.0, "estado": "Verde", "fila": "Semaforo"},
-            {"inicio": 1.0, "fin": 1.5, "estado": "Amarillo", "fila": "Semaforo"},
-            {"inicio": 1.5, "fin": max_domain, "estado": "Rojo", "fila": "Semaforo"},
+            {"inicio": 0.0, "fin": 1.0, "estado": "Verde", "fila": "Semáforo"},
+            {"inicio": 1.0, "fin": 1.5, "estado": "Amarillo", "fila": "Semáforo"},
+            {"inicio": 1.5, "fin": max_domain, "estado": "Rojo", "fila": "Semáforo"},
         ]
     )
-    valor_df = pd.DataFrame([{"valor": porc_fbc, "fila": "Semaforo"}])
+    valor_df = pd.DataFrame([{"valor": porc_fbc, "fila": "Semáforo"}])
     bandas_df["inicio_label"] = bandas_df["inicio"].apply(lambda x: _format_number_latam(x, 1))
     bandas_df["fin_label"] = bandas_df["fin"].apply(lambda x: _format_number_latam(x, 1))
     valor_df["valor_label"] = valor_df["valor"].apply(lambda x: _format_percent_latam(x, 1))
@@ -341,7 +382,7 @@ def _build_semaforo_chart(porc_fbc: float):
         .encode(
             x=alt.X(
                 "inicio:Q",
-                title="% FBC (ultima hora)",
+                title="% FBC Absoluta (última hora)",
                 scale=alt.Scale(domain=[0, max_domain]),
             ),
             x2="fin:Q",
@@ -368,7 +409,7 @@ def _build_semaforo_chart(porc_fbc: float):
         .encode(
             x=alt.X("valor:Q", scale=alt.Scale(domain=[0, max_domain])),
             y=alt.Y("fila:N", axis=None),
-            tooltip=[alt.Tooltip("valor_label:N", title="% FBC actual")],
+            tooltip=[alt.Tooltip("valor_label:N", title="% FBC Absoluta actual")],
         )
     )
 
@@ -419,16 +460,16 @@ def render_como_vamos(
     fecha_operacional_value=None,
     screen_context: dict | None = None,
 ):
-    st.subheader("Estatus Operacion")
+    st.subheader("Status Operación")
     fecha_operacional_value = _resolve_operational_date(
         fecha_operacional,
         fecha_operacional_value,
     )
-    records_df, _, _ = _render_dashboard_filters(records_df, fecha_operacional_value, screen_context)
+    records_df, _, _, _ = _render_dashboard_filters(records_df, fecha_operacional_value, screen_context)
     defectos_df = filter_defectos_by_records(defectos_df, records_df)
 
     if records_df.empty:
-        st.info("No hay registros para el dia operacional o filtros seleccionados.")
+        st.info("No hay registros para el día operacional o filtros seleccionados.")
         return
 
     snapshot = build_operacion_snapshot(records_df, defectos_df)
@@ -449,7 +490,7 @@ def render_como_vamos(
     col1, col2, col3, col4, col5 = st.columns(5)
     col1.metric("% Exportable", _format_percent_latam(kpis["porc_exportable"], 1))
     col2.metric("% Comercial Kg", _format_percent_latam(kpis["porc_comercial_kilos"], 1))
-    col3.metric("% Sana", _format_percent_latam(kpis["porc_sana"], 1))
+    col3.metric("% FBC muestra", _format_percent_latam(kpis["porc_sana"], 1))
     col4.metric("% Choice", _format_percent_latam(kpis["porc_choice"], 1))
     col5.metric("% Descartable", _format_percent_latam(kpis["porc_descartable"], 1))
 
@@ -479,7 +520,7 @@ def render_como_vamos(
 
         promedio_fbc_h_df = _group_hourly(kpi_source_df, "porc_fbc", agg="mean")
         if promedio_fbc_h_df.empty:
-            st.info("Aun no hay suficientes registros para calcular el promedio de % FBC por hora.")
+            st.info("Aún no hay suficientes registros para calcular el promedio de % FBC por hora.")
         else:
             promedio_fbc_h_df["porc_fbc"] = promedio_fbc_h_df["porc_fbc"].round(0).astype(int)
             hora_sort = promedio_fbc_h_df["hora"].tolist()
@@ -515,7 +556,7 @@ def render_como_vamos(
             defect_hour_df = defect_hour_df.loc[defect_hour_df["updated_at_dt"].notna()].copy()
 
             if defect_hour_df.empty:
-                st.info("No hay marcas horarias validas para calcular la tendencia de defectos.")
+                st.info("No hay marcas horarias válidas para calcular la tendencia de defectos.")
             else:
                 defect_hour_df["hora_dt"] = defect_hour_df["updated_at_dt"].dt.floor("h")
                 defect_hour_group = (
@@ -560,7 +601,7 @@ def render_como_vamos(
                 st.altair_chart(_configure_chart(defecto_chart), width="stretch")
 
     with col_right:
-        st.markdown("Status de Operacion (Kg FBC/h)")
+        st.markdown("Status de Operación (Kg FBC/h)")
 
         tendencia_df = _group_hourly(kpi_source_df, "kg_fbc_h", agg="sum")
         if not tendencia_df.empty:
@@ -581,7 +622,7 @@ def render_como_vamos(
             )
             st.altair_chart(_configure_chart(chart), width="stretch")
         else:
-            st.info("Aun no hay suficientes registros para construir la tendencia de Kg FBC/h por hora.")
+            st.info("Aún no hay suficientes registros para construir la tendencia de Kg FBC/h por hora.")
 
     st.divider()
 
@@ -608,7 +649,7 @@ def render_como_vamos(
 
         kg_exportable_h_df = _group_hourly(kpi_source_df, "kg_exportable_calc", agg="sum")
         if kg_exportable_h_df.empty:
-            st.info("Aun no hay suficientes registros para construir Kg exportable por hora.")
+            st.info("Aún no hay suficientes registros para construir Kg exportable por hora.")
         else:
             hora_sort = kg_exportable_h_df["hora"].tolist()
             kg_exportable_h_df["kg_exportable_calc_label"] = kg_exportable_h_df["kg_exportable_calc"].apply(
@@ -633,7 +674,7 @@ def render_como_vamos(
         st.markdown("Top defectos")
 
         if defectos_df.empty:
-            st.info("No hay defectos registrados para este dia operacional.")
+            st.info("No hay defectos registrados para este día operacional.")
         else:
             top_defectos = (
                 defectos_df.groupby("nombre_defecto", dropna=False)["cantidad"]
@@ -703,7 +744,7 @@ def render_como_vamos(
         pendientes_df = pendientes_df.rename(columns={
             "id_registro": "ID",
             "lote": "Lote",
-            "linea": "Linea",
+            "linea": "Línea",
             "especie": "Especie",
             "turno_nombre": "Turno",
             "campos_pendientes": "Pendiente",
@@ -714,7 +755,7 @@ def render_como_vamos(
 
     st.divider()
 
-    st.markdown("Detalle del dia")
+    st.markdown("Detalle del día")
     detalle_df = records_df[[
         "id_registro",
         "updated_at",
@@ -742,7 +783,7 @@ def render_como_vamos(
         "updated_at": "Actualizado",
         "turno_nombre": "Turno",
         "lote": "Lote",
-        "linea": "Linea",
+        "linea": "Línea",
         "especie": "Especie",
         "variedad": "Variedad",
         "centro_display": "Centro",
@@ -754,10 +795,10 @@ def render_como_vamos(
         "campos_pendientes": "Pendientes",
         "porc_exportable": "% Exportable",
         "porc_comercial_kilos": "% Comercial Kg",
-        "porc_sana": "% Sana",
+        "porc_sana": "% FBC muestra",
         "porc_choice": "% Choice",
         "porc_descartable": "% Descartable",
-        "porc_fbc": "% FBC",
+        "porc_fbc": "% FBC Absoluta",
     })
     detalle_df["ID"] = detalle_df["ID"].apply(lambda x: _format_number_latam(x, 0))
     detalle_df["Muestra"] = detalle_df["Muestra"].apply(lambda x: _format_number_latam(x, 0))
@@ -767,10 +808,10 @@ def render_como_vamos(
     for porcentaje_col in [
         "% Exportable",
         "% Comercial Kg",
-        "% Sana",
+        "% FBC muestra",
         "% Choice",
         "% Descartable",
-        "% FBC",
+        "% FBC Absoluta",
     ]:
         detalle_df[porcentaje_col] = detalle_df[porcentaje_col].apply(
             lambda x: _format_percent_latam(x, 1)

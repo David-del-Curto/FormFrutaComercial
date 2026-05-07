@@ -16,3 +16,6 @@
 - *% Defecto total KPI: ¨Por hora: suma_deefectos / calidad_base* (fruta_sana+choice+defectos, fallback muestra)
 - % por tipo de defecto:  Serie por cada defecto para ver cual domina en cada hora
 - % sobre muestra : Por hora suma_defectos / cant_muestra
+
+%FBC Absoluto (ultima hora)
+%Sana FBC muestra 

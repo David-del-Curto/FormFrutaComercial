@@ -15,8 +15,8 @@ def validar_formulario(
     if not nro_lote.strip():
         errores.append("Debe ingresar N° Lote")
 
-    #if not centro.strip():
-    #    errores.append("Debe ingresar Centro")
+    # if not centro.strip():
+    #     errores.append("Debe ingresar Centro")
 
     if not verificador.strip():
         errores.append("Debe ingresar Verificador")
@@ -44,12 +44,12 @@ def validar_formulario(
 
     if kg_ultima_hora > 0 and velocidad_kgh <= 0:
         errores.append(
-            "Para informar Kilos Fruta Comercial (ultima hora), Velocidad Kg/h debe ser mayor a 0."
+            "Para informar Kilos Fruta Comercial (última hora), Velocidad Kg/h debe ser mayor a 0."
         )
     elif velocidad_kgh > 0 and kg_ultima_hora > velocidad_kgh:
         velocidad_txt = int(velocidad_kgh) if velocidad_kgh.is_integer() else round(velocidad_kgh, 2)
         errores.append(
-            f"Kilos Fruta Comercial (ultima hora) ({kg_ultima_hora}) no puede superar Velocidad Kg/h ({velocidad_txt})."
+            f"Kilos Fruta Comercial (última hora) ({kg_ultima_hora}) no puede superar Velocidad Kg/h ({velocidad_txt})."
         )
 
     if total_resultado > cant_muestra:
@@ -58,7 +58,7 @@ def validar_formulario(
         )
     elif total_resultado < cant_muestra:
         errores.append(
-            f"Resultado acumulado ({total_resultado}) aun no completa la muestra ({cant_muestra})"
+            f"Resultado acumulado ({total_resultado}) aún no completa la muestra ({cant_muestra})"
         )
 
     return errores

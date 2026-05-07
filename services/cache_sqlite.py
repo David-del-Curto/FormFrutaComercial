@@ -17,9 +17,7 @@ def get_conn():
     return conn
 
 
-def init_cache():
-    conn = get_conn()
-
+def _ensure_cache_table(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS cache (
             key TEXT PRIMARY KEY,
@@ -28,13 +26,20 @@ def init_cache():
             ttl INTEGER NOT NULL
         )
     """)
+    conn.commit()
 
+
+def init_cache():
+    conn = get_conn()
+
+    _ensure_cache_table(conn)
     conn.commit()
     conn.close()
 
 
-def get_cache(key):
+def get_cache_entry(key, allow_expired: bool = False):
     conn = get_conn()
+    _ensure_cache_table(conn)
 
     row = conn.execute(
         "SELECT value, created_at, ttl FROM cache WHERE key = ?",
@@ -47,15 +52,31 @@ def get_cache(key):
         return None
 
     value, created_at, ttl = row
+    age_seconds = int(time.time()) - created_at
+    is_expired = age_seconds > ttl
 
-    if int(time.time()) - created_at > ttl:
+    if is_expired and not allow_expired:
         return None
 
-    return json.loads(value)
+    return {
+        "value": json.loads(value),
+        "created_at": created_at,
+        "ttl": ttl,
+        "age_seconds": age_seconds,
+        "is_expired": is_expired,
+    }
+
+
+def get_cache(key, allow_expired: bool = False):
+    entry = get_cache_entry(key, allow_expired=allow_expired)
+    if entry is None:
+        return None
+    return entry["value"]
 
 
 def set_cache(key, value, ttl):
     conn = get_conn()
+    _ensure_cache_table(conn)
 
     conn.execute(
         """
@@ -71,6 +92,7 @@ def set_cache(key, value, ttl):
 
 def clear_cache():
     conn = get_conn()
+    _ensure_cache_table(conn)
     conn.execute("DELETE FROM cache")
     conn.commit()
     conn.close()

@@ -37,14 +37,23 @@ def check_pyodbc_driver(required_driver: str):
 
 
 def check_sql_connection(run_sp_checks: bool):
-    from engine import cargar_centros, cargar_especies, get_engine
+    from engine import cargar_centros, cargar_especies, classify_db_exception, get_engine
 
     print_header("Azure SQL")
     engine = get_engine()
 
-    with engine.connect() as conn:
-        value = conn.exec_driver_sql("SELECT 1 AS ok").scalar_one()
-        print(f"sql_ping: {value}")
+    try:
+        with engine.connect() as conn:
+            value = conn.exec_driver_sql("SELECT 1 AS ok").scalar_one()
+            print(f"sql_ping: {value}")
+    except Exception as exc:
+        diagnostic = classify_db_exception(exc)
+        print(f"sql_ping: ERROR")
+        print(f"sql_error_category: {diagnostic['category']}")
+        print(f"sql_error_title: {diagnostic['title']}")
+        print(f"sql_error_action: {diagnostic['action']}")
+        print(f"sql_error_raw: {diagnostic['raw_message']}")
+        raise
 
     if not run_sp_checks:
         return
@@ -66,6 +75,8 @@ def check_local_store():
 
 
 def main():
+    from engine import get_connection_settings
+
     parser = argparse.ArgumentParser(
         description="Smoke test del runtime para Form Fruta Comercial."
     )
@@ -89,6 +100,16 @@ def main():
     print_header("Environment")
     print(f"cwd: {os.getcwd()}")
     print(f"project_root: {ROOT}")
+
+    settings = get_connection_settings()
+    print_header("Azure SQL Config")
+    print(f"server: {settings['server']}")
+    print(f"database: {settings['database']}")
+    print(f"configured_driver: {settings['driver']}")
+    if settings["driver"] != args.required_driver:
+        raise RuntimeError(
+            f"El driver configurado es '{settings['driver']}' y debe ser '{args.required_driver}'."
+        )
 
     check_python_runtime()
     check_pyodbc_driver(args.required_driver)

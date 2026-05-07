@@ -43,10 +43,10 @@ def mostrar_resumen_dialog(
     def _rerun_app():
         st.rerun(scope="app")
 
-    @st.dialog("Confirmacion de Registro", width="large")
+    @st.dialog("Confirmación de Registro", width="large")
     def dialog():
-        st.success("Registro valido")
-        st.markdown("Indicadores de Calidad")
+        st.success("Registro válido")
+        st.markdown("Indicadores de calidad")
 
         cols = st.columns(len(metricas))
         for col, (label, valor) in zip(cols, metricas):
@@ -63,7 +63,7 @@ def mostrar_resumen_dialog(
         col_resumen, col_defectos = st.columns([1, 1])
 
         with col_resumen:
-            st.markdown("Resumen Registro")
+            st.markdown("Resumen de registro")
             for k, v in registro.items():
                 c1, c2 = st.columns([1, 2])
                 c1.markdown(f"**{k}**")
@@ -89,7 +89,7 @@ def mostrar_resumen_dialog(
                 _rerun_app()
 
         with col_btn2:
-            if st.button("Confirmar y Guardar", type="primary"):
+            if st.button("Confirmar y guardar", type="primary"):
                 try:
                     on_confirm()
                 except Exception as exc:

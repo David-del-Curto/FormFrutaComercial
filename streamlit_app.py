@@ -1,14 +1,18 @@
 from datetime import date, datetime
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 
 from engine import (
+    DatabaseConnectionError,
     cargar_centros,
     cargar_especies,
     cargar_productores,
     cargar_variedades,
+    clear_connection_runtime_events,
+    get_connection_runtime_events,
 )
 from core.business_rules import obtener_reglas_centro
 from core.catalogos import DEFECTOS, LINEAS, LUGAR_SELECCION, obtener_lineas_por_centro
@@ -37,6 +41,117 @@ from services.local_store import (
 )
 from services.operacion_config import get_screen_config, load_operacion_config
 from services.save_form import guardar_formulario_staging
+
+
+MANUAL_USUARIO_PATH = Path(__file__).resolve().parent / "docs" / "manual_usuario_estatus_operacion.md"
+PRODUCTORES_COLUMNS = ["CodProductor_SAP", "Productor"]
+CENTROS_COLUMNS = ["CodCentro_SAP", "Centro_Logistico"]
+ESPECIES_COLUMNS = ["idEspecie", "Especie"]
+
+
+def _empty_df(columns):
+    return pd.DataFrame(columns=columns)
+
+
+def _load_base_catalogs():
+    clear_connection_runtime_events()
+    catalogs = {
+        "productores": _empty_df(PRODUCTORES_COLUMNS),
+        "centros": _empty_df(CENTROS_COLUMNS),
+        "especies": _empty_df(ESPECIES_COLUMNS),
+    }
+
+    loaders = [
+        ("productores", cargar_productores, PRODUCTORES_COLUMNS),
+        ("centros", cargar_centros, CENTROS_COLUMNS),
+        ("especies", cargar_especies, ESPECIES_COLUMNS),
+    ]
+
+    for key, loader, columns in loaders:
+        try:
+            catalogs[key] = loader()
+        except DatabaseConnectionError:
+            catalogs[key] = _empty_df(columns)
+
+    events = get_connection_runtime_events()
+    mode = "online"
+    if any(not event.get("used_cache") for event in events):
+        mode = "offline"
+    elif any(event.get("used_cache") for event in events):
+        mode = "degraded"
+
+    return catalogs, {"mode": mode, "events": events}
+
+
+def _load_variedades_safe(id_especie):
+    if id_especie is None:
+        return []
+    try:
+        return cargar_variedades(int(id_especie)).to_dict("records")
+    except DatabaseConnectionError:
+        return []
+
+
+def _render_connection_status(status: dict):
+    if status["mode"] == "online":
+        return
+
+    lines = []
+    seen = set()
+    for event in status.get("events", []):
+        diagnostic = event.get("diagnostic") or {}
+        key = (diagnostic.get("category"), bool(event.get("used_cache")))
+        if key in seen:
+            continue
+        seen.add(key)
+        suffix = "Usando caché local." if event.get("used_cache") else "Sin caché utilizable para este catálogo."
+        lines.append(f"- {diagnostic.get('title', 'Falla de conectividad')}: {diagnostic.get('action', '')} {suffix}".strip())
+
+    body = "\n".join(lines)
+    if status["mode"] == "degraded":
+        st.warning(
+            "Azure SQL no estuvo disponible para todas las lecturas. La app sigue operando con caché SQLite local.\n"
+            f"{body}"
+        )
+        return
+
+    st.error(
+        "Azure SQL no está disponible y no hay catálogos suficientes para inicializar el formulario.\n"
+        f"{body}"
+    )
+
+
+def _render_recent_registros(limit: int = 25):
+    st.divider()
+    st.subheader("Registros locales recientes")
+
+    registros_tabla = list_recent_registros(limit=limit)
+    if not registros_tabla:
+        st.info("Aún no hay registros guardados localmente.")
+        return
+
+    df_registros_tabla = pd.DataFrame(registros_tabla)[[
+        "id_registro",
+        "updated_at",
+        "fecha_operacional",
+        "turno_nombre",
+        "lote",
+        "especie",
+        "cant_muestra",
+        "estado_formulario",
+        "campos_pendientes",
+    ]].rename(columns={
+        "id_registro": "ID",
+        "updated_at": "Actualizado",
+        "fecha_operacional": "Día Operacional",
+        "turno_nombre": "Turno",
+        "lote": "Lote",
+        "especie": "Especie",
+        "cant_muestra": "Muestra",
+        "estado_formulario": "Estado",
+        "campos_pendientes": "Pendientes",
+    })
+    st.dataframe(df_registros_tabla, hide_index=True, width="stretch")
 
 
 def _ensure_default_state(key, value):
@@ -89,7 +204,7 @@ def _validar_formulario_compat(
         )
     except TypeError as exc:
         # Compatibilidad con instancia caliente de Streamlit que mantiene
-        # una version anterior de core.validators (firma de 8 parametros).
+        # una versión anterior de core.validators (firma de 8 parámetros).
         if "takes 8 positional arguments but 10 were given" not in str(exc):
             raise
 
@@ -108,12 +223,12 @@ def _validar_formulario_compat(
         kg_val = int(kg_ultima_hora or 0)
         if kg_val > 0 and velocidad_val <= 0:
             errores.append(
-                "Para informar Kilos Fruta Comercial (ultima hora), Velocidad Kg/h debe ser mayor a 0."
+                "Para informar Kilos Fruta Comercial (última hora), Velocidad Kg/h debe ser mayor a 0."
             )
         elif velocidad_val > 0 and kg_val > velocidad_val:
             velocidad_txt = int(velocidad_val) if velocidad_val.is_integer() else round(velocidad_val, 2)
             errores.append(
-                f"Kilos Fruta Comercial (ultima hora) ({kg_val}) no puede superar Velocidad Kg/h ({velocidad_txt})."
+                f"Kilos Fruta Comercial (última hora) ({kg_val}) no puede superar Velocidad Kg/h ({velocidad_txt})."
             )
 
         return errores
@@ -187,6 +302,22 @@ def _activate_kiosk_autorefresh(screen_config: dict):
     else:
         st_autorefresh(interval=interval_ms, key=refresh_key)
 
+
+def _render_manual_usuario():
+    st.subheader("Manual de Usuario")
+    st.caption("Guía operativa para captura de formularios y uso de Status Operación.")
+
+    try:
+        manual_markdown = MANUAL_USUARIO_PATH.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        st.error(f"No se encontró el manual en {MANUAL_USUARIO_PATH}.")
+        return
+    except OSError as exc:
+        st.error(f"No se pudo leer el manual de usuario: {exc}")
+        return
+
+    st.markdown(manual_markdown)
+
 render_header("images/Imagen2.jpg", "Planilla Fruta Comercial")
 
 operacion_config = load_operacion_config()
@@ -194,27 +325,30 @@ screen_id = _get_query_param("screen_id")
 screen_context = get_screen_config(screen_id, operacion_config)
 
 if screen_context is None and screen_id:
-    st.sidebar.warning(f"screen_id '{screen_id}' no esta configurado.")
+    st.sidebar.warning(f"screen_id '{screen_id}' no está configurado.")
 
 if screen_context is not None and screen_context.get("view") == "estatus":
-    st.session_state["main_menu_section"] = "Estatus Operacion"
-    seccion_activa = "Estatus Operacion"
+    st.session_state["main_menu_section"] = "Status Operación"
+    seccion_activa = "Status Operación"
 else:
+    if st.session_state.get("main_menu_section") == "Estatus Operacion":
+        st.session_state["main_menu_section"] = "Status Operación"
+
     st.sidebar.markdown("---")
     seccion_activa = st.sidebar.radio(
-        "Menu",
-        ["Formulario", "Estatus Operacion"],
+        "Menú",
+        ["Formulario", "Status Operación", "Manual de Usuario"],
         key="main_menu_section",
     )
 
-if seccion_activa == "Estatus Operacion":
+if seccion_activa == "Status Operación":
     render_operacion_layout(hide_sidebar=bool(screen_context and screen_context.get("hide_sidebar")))
     if screen_context is not None:
         _activate_kiosk_autorefresh(screen_context)
 
 if seccion_activa == "Formulario":
     st.caption(
-        f"Dia operacional actual: {get_current_operational_date()} | "
+        f"Día operacional actual: {get_current_operational_date()} | "
         "Turnos: 07:00-17:00, 17:00-02:00"
     )
 
@@ -222,14 +356,25 @@ if seccion_activa == "Formulario":
     if post_save_notice:
         st.success(post_save_notice)
 
-    df_productores = cargar_productores()
+    catalogs, catalog_status = _load_base_catalogs()
+    _render_connection_status(catalog_status)
+
+    df_productores = catalogs["productores"]
     productores = df_productores.to_dict("records")
 
-    df_centros = cargar_centros()
+    df_centros = catalogs["centros"]
     centros = df_centros.to_dict("records")
 
-    df_especies = cargar_especies()
+    df_especies = catalogs["especies"]
     especies = df_especies.to_dict("records")
+
+    if not productores or not centros or not especies:
+        st.info(
+            "La captura queda bloqueada hasta recuperar catálogos remotos o caché local suficiente. "
+            "Puede seguir revisando Status Operación y el Manual de Usuario."
+        )
+        _render_recent_registros(limit=25)
+        st.stop()
 
     if st.session_state.pop("_pending_form_reset", False):
         reset_form_state()
@@ -264,7 +409,7 @@ if seccion_activa == "Formulario":
             st.session_state["editing_record_id"] = None
             st.session_state["registro_local_selector"] = None
             st.session_state["post_save_notice"] = (
-                f"El registro #{pending_form_load_id} ya no esta disponible."
+                f"El registro #{pending_form_load_id} ya no está disponible."
             )
 
     registros_recientes = list_recent_registros(limit=150)
@@ -280,7 +425,7 @@ if seccion_activa == "Formulario":
     opciones_registro = list(registros_editables_map.keys())
     _ensure_nullable_option_state("registro_local_selector", opciones_registro)
 
-    st.subheader("Gestion Formularios")
+    st.subheader("Gestión de formularios")
 
     col_sel, col_load, col_new = st.columns([4, 1, 1], vertical_alignment="bottom")
 
@@ -320,14 +465,14 @@ if seccion_activa == "Formulario":
     registro_editando = get_registro(editing_record_id) if editing_record_id else None
     if editing_record_id and registro_editando is None:
         st.session_state["post_save_notice"] = (
-            f"El registro local #{editing_record_id} ya no esta disponible."
+            f"El registro local #{editing_record_id} ya no está disponible."
         )
         _queue_form_reset()
         st.rerun(scope="app")
 
     editando_borrador = registro_editando is not None and int(registro_editando.get("es_completo") or 0) == 0
     editando_completo = registro_editando is not None and int(registro_editando.get("es_completo") or 0) == 1
-    captura_bloqueada = registro_editando is not None
+    captura_bloqueada = editando_completo
     velocidades_bloqueadas = not editando_borrador
     puede_guardar = not editando_completo
 
@@ -337,12 +482,12 @@ if seccion_activa == "Formulario":
         if editando_borrador:
             st.info(
                 f"Editando registro #{editing_record_id} | Estado: {estado} | "
-                f"Pendientes: {pendientes}. En esta etapa solo se completan los campos pendientes."
+                f"Pendientes: {pendientes}. Puede modificar todos los campos antes de completarlo."
             )
         else:
             st.success(
                 f"Registro #{editing_record_id} | Estado: {estado}. "
-                "Este formulario ya esta completo y no puede volver a editarse."
+                "Este formulario ya está completo y no puede volver a editarse."
             )
     else:
         st.caption(
@@ -365,7 +510,7 @@ if seccion_activa == "Formulario":
     especie_default = _ensure_option_state("form_especie", especies)
 
     variedades = (
-        cargar_variedades(int(especie_default["idEspecie"])).to_dict("records")
+        _load_variedades_safe(especie_default["idEspecie"])
         if especie_default is not None
         else []
     )
@@ -386,7 +531,7 @@ if seccion_activa == "Formulario":
 
     with col2:
         centro = st.selectbox(
-            "Centro Logistico",
+            "Centro Logístico",
             centros,
             format_func=lambda x: f"{x['CodCentro_SAP']} - {x['Centro_Logistico']}",
             key="form_centro",
@@ -411,7 +556,7 @@ if seccion_activa == "Formulario":
         )
 
         nro_lote = st.text_input(
-            "Nro Lote",
+            "N° Lote",
             key="form_nro_lote",
             placeholder="Ej: 1505475-01",
             disabled=captura_bloqueada
@@ -422,7 +567,7 @@ if seccion_activa == "Formulario":
         _ensure_option_state("form_linea", lineas_centro)
 
         linea = st.selectbox(
-            "Linea",
+            "Línea",
             options=lineas_centro,
             format_func=lambda x: LINEAS.get(x, x),
             key="form_linea",
@@ -437,11 +582,11 @@ if seccion_activa == "Formulario":
             disabled=captura_bloqueada
         )
 
-        variedades = cargar_variedades(int(especie["idEspecie"])).to_dict("records")
+        variedades = _load_variedades_safe(especie["idEspecie"])
         _ensure_option_state("form_variedad", variedades)
 
         cant_muestra = st.number_input(
-            "Cantidad Muestra Frutos",
+            "Cantidad de muestra de frutos",
             min_value=0,
             step=1,
             key="form_cant_muestra",
@@ -450,7 +595,7 @@ if seccion_activa == "Formulario":
 
     with col3:
         lugar_codigo = st.selectbox(
-            "Lugar de seleccion",
+            "Lugar de selección",
             options=list(LUGAR_SELECCION.keys()),
             format_func=lambda x: LUGAR_SELECCION[x],
             key="form_lugar_codigo",
@@ -514,9 +659,9 @@ if seccion_activa == "Formulario":
     )
 
     if editando_borrador:
-        submit_label = "Completar y Guardar"
+        submit_label = "Completar y guardar"
     else:
-        submit_label = "Guardar Formulario"
+        submit_label = "Guardar formulario"
 
     submit = st.button(
         submit_label,
@@ -637,10 +782,10 @@ if seccion_activa == "Formulario":
             "Pendientes": estado_estimado["campos_pendientes"] or "Sin pendientes",
             "Verificador": verificador,
             "Fecha": fecha.strftime("%Y-%m-%d"),
-            "Linea": LINEAS.get(linea, linea),
+            "Línea": LINEAS.get(linea, linea),
             "Especie": especie["Especie"],
             "Variedad": variedad["Variedad"],
-            "Nro Lote": nro_lote,
+            "N° Lote": nro_lote,
             "Centro": centro_display,
             "Productor": productor_display,
             "Cant Muestra": cant_muestra,
@@ -650,7 +795,7 @@ if seccion_activa == "Formulario":
             "Fruta Sana (captura)": resultado["fruta_sana"],
             "Choice (captura)": resultado["choice"],
             "Velocidad Kg/h": velocidad_kgh,
-            "Kilos Fruta Comercial (ultima hora)": kg_ultima_hora,
+            "Kilos Fruta Comercial (última hora)": kg_ultima_hora,
             "Kg Exportable (Velocidad - Comercial)": kilos_exportables,
             "Velocidad Tercero Kg/h": (
                 terceros["velocidad_manual"]
@@ -660,13 +805,13 @@ if seccion_activa == "Formulario":
             label_exportacion: exportable_modal,
             "% Embalable": porc_embalable,
             "% Comercial Kg": comercial_modal,
-            "% FBC": fbc_modal,
+            "% FBC Absoluto": fbc_modal,
             "% Choice": porc_choice,
             "% Descartable": porc_descartable,
         }
         if not base_kilos_disponible:
             resumen["Nota KPI kilos"] = (
-                "Complete Velocidad Kg/h para calcular % Exportable, % Comercial Kg y % FBC."
+                "Complete Velocidad Kg/h para calcular % Exportable, % Comercial Kg y % FBC Absoluto."
             )
 
         def confirmar():
@@ -681,7 +826,7 @@ if seccion_activa == "Formulario":
             (label_exportacion, exportable_modal),
             ("% Embalable", porc_embalable),
             ("% Comercial Kg", comercial_modal),
-            ("% FBC", fbc_modal),
+            ("% FBC Absoluto", fbc_modal),
             ("% Descartable", porc_descartable),
         ]
 
@@ -692,37 +837,12 @@ if seccion_activa == "Formulario":
             confirmar
         )
 
-    st.divider()
-    st.subheader("Registros Locales Recientes")
+    _render_recent_registros(limit=25)
 
-    registros_tabla = list_recent_registros(limit=25)
-    if registros_tabla:
-        df_registros_tabla = pd.DataFrame(registros_tabla)[[
-            "id_registro",
-            "updated_at",
-            "fecha_operacional",
-            "turno_nombre",
-            "lote",
-            "especie",
-            "cant_muestra",
-            "estado_formulario",
-            "campos_pendientes",
-        ]].rename(columns={
-            "id_registro": "ID",
-            "updated_at": "Actualizado",
-            "fecha_operacional": "Dia Operacional",
-            "turno_nombre": "Turno",
-            "lote": "Lote",
-            "especie": "Especie",
-            "cant_muestra": "Muestra",
-            "estado_formulario": "Estado",
-            "campos_pendientes": "Pendientes",
-        })
-        st.dataframe(df_registros_tabla, hide_index=True, width='stretch')
-    else:
-        st.info("Aun no hay registros guardados localmente.")
+if seccion_activa == "Manual de Usuario":
+    _render_manual_usuario()
 
-if seccion_activa == "Estatus Operacion":
+if seccion_activa == "Status Operación":
     if screen_context is not None:
         st.session_state["bi_fecha_operacional"] = datetime.fromisoformat(
             get_current_operational_date()

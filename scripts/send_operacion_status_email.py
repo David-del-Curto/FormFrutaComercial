@@ -34,14 +34,14 @@ ALERT_CODE_FBC = "fbc_1h_threshold"
 
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Envio de correos de Estatus Operacion")
+    parser = argparse.ArgumentParser(description="Envío de correos de Status Operación")
     parser.add_argument("--fecha", help="Fecha operacional YYYY-MM-DD")
-    parser.add_argument("--dry-run", action="store_true", help="No envia correos ni registra despachos")
-    parser.add_argument("--force-digest", action="store_true", help="Fuerza el envio del digest aunque no coincida con una hora programada")
-    parser.add_argument("--force-alerts", action="store_true", help="Evalua alertas aunque no existan destinatarios por linea configurados")
+    parser.add_argument("--dry-run", action="store_true", help="No envía correos ni registra despachos")
+    parser.add_argument("--force-digest", action="store_true", help="Fuerza el envío del digest aunque no coincida con una hora programada")
+    parser.add_argument("--force-alerts", action="store_true", help="Evalúa alertas aunque no existan destinatarios por línea configurados")
     parser.add_argument("--schedule-slot", help="Etiqueta HH:MM para el digest programado")
-    parser.add_argument("--skip-digest", action="store_true", help="Omite el envio de digest")
-    parser.add_argument("--skip-alerts", action="store_true", help="Omite el envio de alertas")
+    parser.add_argument("--skip-digest", action="store_true", help="Omite el envío de digest")
+    parser.add_argument("--skip-alerts", action="store_true", help="Omite el envío de alertas")
     return parser.parse_args()
 
 
@@ -56,6 +56,17 @@ def _dedupe_recipients(*recipient_groups) -> list[str]:
             normalized.append(email)
             seen.add(email)
     return normalized
+
+
+def _registered_recipients(config: dict) -> set[str]:
+    recipients = set(config["mail"].get("global_recipients", []))
+    for group in config["mail"].get("line_recipients", {}).values():
+        recipients.update(group or [])
+    return recipients
+
+
+def _filter_registered_recipients(recipients: list[str], registered: set[str]) -> list[str]:
+    return [email for email in recipients if email in registered]
 
 
 def _resolve_digest_slot(config: dict, now_local: datetime, args: argparse.Namespace) -> str | None:
@@ -75,11 +86,18 @@ def _resolve_digest_slot(config: dict, now_local: datetime, args: argparse.Names
 
 
 def _send_or_log(subject: str, html_body: str, recipients: list[str], dry_run: bool):
+    if not recipients:
+        print(f"[skip] {subject} sin destinatarios registrados válidos")
+        return False
+
     if dry_run:
         print(f"[dry-run] {subject} -> {', '.join(recipients) if recipients else '(sin destinatarios)'}")
         return False
 
-    send_email(subject=subject, html_body=html_body, recipients=recipients)
+    if not send_email(subject=subject, html_body=html_body, recipients=recipients):
+        print(f"[skip] {subject} sin destinatarios registrados válidos")
+        return False
+
     print(f"[sent] {subject} -> {', '.join(recipients)}")
     return True
 
@@ -112,9 +130,12 @@ def main():
 
     digest_slot = _resolve_digest_slot(config, now_local, args)
     global_recipients = config["mail"]["global_recipients"]
+    registered_recipients = _registered_recipients(config)
 
     if digest_slot is not None:
         digest_schedule_key = digest_slot if not args.force_digest else f"{digest_slot}-manual-{now_local.strftime('%H%M%S')}"
+
+        global_recipients = _filter_registered_recipients(global_recipients, registered_recipients)
 
         if global_recipients:
             already_sent = was_operacion_dispatch_sent(
@@ -135,10 +156,13 @@ def main():
                         metadata={"schedule_slot": digest_slot},
                     )
         else:
-            print("[skip] digest_general sin destinatarios globales configurados")
+            print("[skip] digest_general sin destinatarios globales registrados")
 
         for linea, snapshot in line_snapshots.items():
-            recipients = _dedupe_recipients(global_recipients, config["mail"]["line_recipients"].get(linea, []))
+            recipients = _filter_registered_recipients(
+                _dedupe_recipients(global_recipients, config["mail"]["line_recipients"].get(linea, [])),
+                registered_recipients,
+            )
             if not recipients:
                 continue
 
@@ -160,12 +184,15 @@ def main():
                         metadata={"schedule_slot": digest_slot},
                     )
     else:
-        print("[skip] no corresponde digest en esta ejecucion")
+        print("[skip] no corresponde digest en esta ejecución")
 
     if not args.skip_alerts:
         threshold = float(config["mail"]["alert_threshold_fbc"])
         for linea, snapshot in line_snapshots.items():
-            recipients = _dedupe_recipients(global_recipients, config["mail"]["line_recipients"].get(linea, []))
+            recipients = _filter_registered_recipients(
+                _dedupe_recipients(global_recipients, config["mail"]["line_recipients"].get(linea, [])),
+                registered_recipients,
+            )
             if not recipients and not args.force_alerts:
                 continue
 
@@ -216,7 +243,7 @@ def main():
                     recovered_at=state.get("recovered_at"),
                 )
     else:
-        print("[skip] alertas deshabilitadas para esta ejecucion")
+        print("[skip] alertas deshabilitadas para esta ejecución")
 
 
 if __name__ == "__main__":
