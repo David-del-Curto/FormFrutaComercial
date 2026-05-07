@@ -33,6 +33,7 @@ sql/
 logs/
 out/
 docs/secrets*.md*
+docs/*.md
 
 # Docker/OS temporales
 *.swp
