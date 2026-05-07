@@ -88,13 +88,20 @@ def prepare_records_for_kpi(records_df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def apply_record_filters(records_df: pd.DataFrame, linea: str | None = None, especie: str | None = None) -> pd.DataFrame:
+def apply_record_filters(
+    records_df: pd.DataFrame,
+    linea: str | None = None,
+    especie: str | None = None,
+    variedad: str | None = None,
+) -> pd.DataFrame:
     filtered_df = records_df.copy()
 
     if linea:
         filtered_df = filtered_df.loc[filtered_df["linea"].astype(str) == str(linea)].copy()
     if especie:
         filtered_df = filtered_df.loc[filtered_df["especie"].astype(str) == str(especie)].copy()
+    if variedad:
+        filtered_df = filtered_df.loc[filtered_df["variedad"].astype(str) == str(variedad)].copy()
 
     return filtered_df
 

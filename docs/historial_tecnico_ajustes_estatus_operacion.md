@@ -70,7 +70,7 @@ Estado actual:
 - sin labels auxiliares bajo el chart
 
 ### 3.5 Claridad de ventana movil
-Se confirmo y documentó la logica operativa:
+Se confirmo y documentï¿½ la logica operativa:
 - la ventana KPI es de 1 hora movil respecto al ultimo `updated_at`
 - no corresponde necesariamente a una hora reloj cerrada
 - si dentro de esa hora solo existen registros en una fraccion menor, la actividad visible se concentra en ese tramo
@@ -127,7 +127,7 @@ Se implemento modo operativo por URL/configuracion:
   - bloqueo de filtros
   - ocultar sidebar si corresponde
 
-Diseño final adoptado:
+Diseï¿½o final adoptado:
 - diferenciar pantallas y tablets por URL/config, no por `User-Agent`
 
 ### 3.10 Correos de estatus y alertas
@@ -173,7 +173,7 @@ Archivos principales ajustados:
 
 ## 5. Limpieza documental y archivos obsoletos
 Se consideran obsoletos y prescindibles los siguientes artefactos temporales del proceso de ajuste:
-- notas sueltas (`Sin título.md`)
+- notas sueltas (`Sin tï¿½tulo.md`)
 - planes temporales con encoding degradado (`PLAN.md`)
 - respaldos locales de arranque (`streamlit_app copy.py`, `streamlit_app copy 2.py`)
 

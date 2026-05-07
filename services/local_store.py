@@ -432,7 +432,7 @@ def save_formulario_local(payload, defectos, record_id: int | None = None):
 
         if int(existing.get("es_completo") or 0) == 1:
             conn.close()
-            raise ValueError(f"El registro local #{record_id} ya esta completo y no puede editarse.")
+            raise ValueError(f"El registro local #{record_id} ya está completo y no puede editarse.")
 
     source_system, source_business_key = _resolve_source_identity(payload, existing)
 

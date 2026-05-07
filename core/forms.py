@@ -152,7 +152,7 @@ def render_bloque_resultado(cant_muestra, suma_defectos, choice_disabled: bool =
             key=choice_key,
             disabled=choice_disabled
         )
-        st.caption(f"Disponible maximo sugerido: {resultado['choice_disponible']}")
+        st.caption(f"Disponible máximo sugerido: {resultado['choice_disponible']}")
 
     resultado = calcular_resultado(cant_muestra, suma_defectos, choice)
     acumulado = resultado["fruta_comercial"] + resultado["choice"]

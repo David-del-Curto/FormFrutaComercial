@@ -104,30 +104,30 @@ def _render_connection_status(status: dict):
         if key in seen:
             continue
         seen.add(key)
-        suffix = "Usando cache local." if event.get("used_cache") else "Sin cache utilizable para este catalogo."
+        suffix = "Usando caché local." if event.get("used_cache") else "Sin caché utilizable para este catálogo."
         lines.append(f"- {diagnostic.get('title', 'Falla de conectividad')}: {diagnostic.get('action', '')} {suffix}".strip())
 
     body = "\n".join(lines)
     if status["mode"] == "degraded":
         st.warning(
-            "Azure SQL no estuvo disponible para todas las lecturas. La app sigue operando con cache SQLite local.\n"
+            "Azure SQL no estuvo disponible para todas las lecturas. La app sigue operando con caché SQLite local.\n"
             f"{body}"
         )
         return
 
     st.error(
-        "Azure SQL no esta disponible y no hay catalogos suficientes para inicializar el formulario.\n"
+        "Azure SQL no está disponible y no hay catálogos suficientes para inicializar el formulario.\n"
         f"{body}"
     )
 
 
 def _render_recent_registros(limit: int = 25):
     st.divider()
-    st.subheader("Registros Locales Recientes")
+    st.subheader("Registros locales recientes")
 
     registros_tabla = list_recent_registros(limit=limit)
     if not registros_tabla:
-        st.info("Aun no hay registros guardados localmente.")
+        st.info("Aún no hay registros guardados localmente.")
         return
 
     df_registros_tabla = pd.DataFrame(registros_tabla)[[
@@ -143,7 +143,7 @@ def _render_recent_registros(limit: int = 25):
     ]].rename(columns={
         "id_registro": "ID",
         "updated_at": "Actualizado",
-        "fecha_operacional": "Dia Operacional",
+        "fecha_operacional": "Día Operacional",
         "turno_nombre": "Turno",
         "lote": "Lote",
         "especie": "Especie",
@@ -204,7 +204,7 @@ def _validar_formulario_compat(
         )
     except TypeError as exc:
         # Compatibilidad con instancia caliente de Streamlit que mantiene
-        # una version anterior de core.validators (firma de 8 parametros).
+        # una versión anterior de core.validators (firma de 8 parámetros).
         if "takes 8 positional arguments but 10 were given" not in str(exc):
             raise
 
@@ -223,12 +223,12 @@ def _validar_formulario_compat(
         kg_val = int(kg_ultima_hora or 0)
         if kg_val > 0 and velocidad_val <= 0:
             errores.append(
-                "Para informar Kilos Fruta Comercial (ultima hora), Velocidad Kg/h debe ser mayor a 0."
+                "Para informar Kilos Fruta Comercial (última hora), Velocidad Kg/h debe ser mayor a 0."
             )
         elif velocidad_val > 0 and kg_val > velocidad_val:
             velocidad_txt = int(velocidad_val) if velocidad_val.is_integer() else round(velocidad_val, 2)
             errores.append(
-                f"Kilos Fruta Comercial (ultima hora) ({kg_val}) no puede superar Velocidad Kg/h ({velocidad_txt})."
+                f"Kilos Fruta Comercial (última hora) ({kg_val}) no puede superar Velocidad Kg/h ({velocidad_txt})."
             )
 
         return errores
@@ -305,12 +305,12 @@ def _activate_kiosk_autorefresh(screen_config: dict):
 
 def _render_manual_usuario():
     st.subheader("Manual de Usuario")
-    st.caption("Guia operativa para captura de formularios y uso de Estatus Operacion.")
+    st.caption("Guía operativa para captura de formularios y uso de Status Operación.")
 
     try:
         manual_markdown = MANUAL_USUARIO_PATH.read_text(encoding="utf-8")
     except FileNotFoundError:
-        st.error(f"No se encontro el manual en {MANUAL_USUARIO_PATH}.")
+        st.error(f"No se encontró el manual en {MANUAL_USUARIO_PATH}.")
         return
     except OSError as exc:
         st.error(f"No se pudo leer el manual de usuario: {exc}")
@@ -325,27 +325,30 @@ screen_id = _get_query_param("screen_id")
 screen_context = get_screen_config(screen_id, operacion_config)
 
 if screen_context is None and screen_id:
-    st.sidebar.warning(f"screen_id '{screen_id}' no esta configurado.")
+    st.sidebar.warning(f"screen_id '{screen_id}' no está configurado.")
 
 if screen_context is not None and screen_context.get("view") == "estatus":
-    st.session_state["main_menu_section"] = "Estatus Operacion"
-    seccion_activa = "Estatus Operacion"
+    st.session_state["main_menu_section"] = "Status Operación"
+    seccion_activa = "Status Operación"
 else:
+    if st.session_state.get("main_menu_section") == "Estatus Operacion":
+        st.session_state["main_menu_section"] = "Status Operación"
+
     st.sidebar.markdown("---")
     seccion_activa = st.sidebar.radio(
-        "Menu",
-        ["Formulario", "Estatus Operacion", "Manual de Usuario"],
+        "Menú",
+        ["Formulario", "Status Operación", "Manual de Usuario"],
         key="main_menu_section",
     )
 
-if seccion_activa == "Estatus Operacion":
+if seccion_activa == "Status Operación":
     render_operacion_layout(hide_sidebar=bool(screen_context and screen_context.get("hide_sidebar")))
     if screen_context is not None:
         _activate_kiosk_autorefresh(screen_context)
 
 if seccion_activa == "Formulario":
     st.caption(
-        f"Dia operacional actual: {get_current_operational_date()} | "
+        f"Día operacional actual: {get_current_operational_date()} | "
         "Turnos: 07:00-17:00, 17:00-02:00"
     )
 
@@ -367,8 +370,8 @@ if seccion_activa == "Formulario":
 
     if not productores or not centros or not especies:
         st.info(
-            "La captura queda bloqueada hasta recuperar catalogos remotos o cache local suficiente. "
-            "Puede seguir revisando Estatus Operacion y el Manual de Usuario."
+            "La captura queda bloqueada hasta recuperar catálogos remotos o caché local suficiente. "
+            "Puede seguir revisando Status Operación y el Manual de Usuario."
         )
         _render_recent_registros(limit=25)
         st.stop()
@@ -406,7 +409,7 @@ if seccion_activa == "Formulario":
             st.session_state["editing_record_id"] = None
             st.session_state["registro_local_selector"] = None
             st.session_state["post_save_notice"] = (
-                f"El registro #{pending_form_load_id} ya no esta disponible."
+                f"El registro #{pending_form_load_id} ya no está disponible."
             )
 
     registros_recientes = list_recent_registros(limit=150)
@@ -422,7 +425,7 @@ if seccion_activa == "Formulario":
     opciones_registro = list(registros_editables_map.keys())
     _ensure_nullable_option_state("registro_local_selector", opciones_registro)
 
-    st.subheader("Gestion Formularios")
+    st.subheader("Gestión de formularios")
 
     col_sel, col_load, col_new = st.columns([4, 1, 1], vertical_alignment="bottom")
 
@@ -462,7 +465,7 @@ if seccion_activa == "Formulario":
     registro_editando = get_registro(editing_record_id) if editing_record_id else None
     if editing_record_id and registro_editando is None:
         st.session_state["post_save_notice"] = (
-            f"El registro local #{editing_record_id} ya no esta disponible."
+            f"El registro local #{editing_record_id} ya no está disponible."
         )
         _queue_form_reset()
         st.rerun(scope="app")
@@ -484,7 +487,7 @@ if seccion_activa == "Formulario":
         else:
             st.success(
                 f"Registro #{editing_record_id} | Estado: {estado}. "
-                "Este formulario ya esta completo y no puede volver a editarse."
+                "Este formulario ya está completo y no puede volver a editarse."
             )
     else:
         st.caption(
@@ -528,7 +531,7 @@ if seccion_activa == "Formulario":
 
     with col2:
         centro = st.selectbox(
-            "Centro Logistico",
+            "Centro Logístico",
             centros,
             format_func=lambda x: f"{x['CodCentro_SAP']} - {x['Centro_Logistico']}",
             key="form_centro",
@@ -553,7 +556,7 @@ if seccion_activa == "Formulario":
         )
 
         nro_lote = st.text_input(
-            "Nro Lote",
+            "N° Lote",
             key="form_nro_lote",
             placeholder="Ej: 1505475-01",
             disabled=captura_bloqueada
@@ -564,7 +567,7 @@ if seccion_activa == "Formulario":
         _ensure_option_state("form_linea", lineas_centro)
 
         linea = st.selectbox(
-            "Linea",
+            "Línea",
             options=lineas_centro,
             format_func=lambda x: LINEAS.get(x, x),
             key="form_linea",
@@ -583,7 +586,7 @@ if seccion_activa == "Formulario":
         _ensure_option_state("form_variedad", variedades)
 
         cant_muestra = st.number_input(
-            "Cantidad Muestra Frutos",
+            "Cantidad de muestra de frutos",
             min_value=0,
             step=1,
             key="form_cant_muestra",
@@ -592,7 +595,7 @@ if seccion_activa == "Formulario":
 
     with col3:
         lugar_codigo = st.selectbox(
-            "Lugar de seleccion",
+            "Lugar de selección",
             options=list(LUGAR_SELECCION.keys()),
             format_func=lambda x: LUGAR_SELECCION[x],
             key="form_lugar_codigo",
@@ -656,9 +659,9 @@ if seccion_activa == "Formulario":
     )
 
     if editando_borrador:
-        submit_label = "Completar y Guardar"
+        submit_label = "Completar y guardar"
     else:
-        submit_label = "Guardar Formulario"
+        submit_label = "Guardar formulario"
 
     submit = st.button(
         submit_label,
@@ -779,10 +782,10 @@ if seccion_activa == "Formulario":
             "Pendientes": estado_estimado["campos_pendientes"] or "Sin pendientes",
             "Verificador": verificador,
             "Fecha": fecha.strftime("%Y-%m-%d"),
-            "Linea": LINEAS.get(linea, linea),
+            "Línea": LINEAS.get(linea, linea),
             "Especie": especie["Especie"],
             "Variedad": variedad["Variedad"],
-            "Nro Lote": nro_lote,
+            "N° Lote": nro_lote,
             "Centro": centro_display,
             "Productor": productor_display,
             "Cant Muestra": cant_muestra,
@@ -792,7 +795,7 @@ if seccion_activa == "Formulario":
             "Fruta Sana (captura)": resultado["fruta_sana"],
             "Choice (captura)": resultado["choice"],
             "Velocidad Kg/h": velocidad_kgh,
-            "Kilos Fruta Comercial (ultima hora)": kg_ultima_hora,
+            "Kilos Fruta Comercial (última hora)": kg_ultima_hora,
             "Kg Exportable (Velocidad - Comercial)": kilos_exportables,
             "Velocidad Tercero Kg/h": (
                 terceros["velocidad_manual"]
@@ -839,7 +842,7 @@ if seccion_activa == "Formulario":
 if seccion_activa == "Manual de Usuario":
     _render_manual_usuario()
 
-if seccion_activa == "Estatus Operacion":
+if seccion_activa == "Status Operación":
     if screen_context is not None:
         st.session_state["bi_fecha_operacional"] = datetime.fromisoformat(
             get_current_operational_date()
